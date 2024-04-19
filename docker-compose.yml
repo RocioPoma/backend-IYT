@@ -1,0 +1,13 @@
+version: "3.9"
+services:
+  backend:
+    build: .
+    environment:
+      NODE_ENV: development
+      DEBUG: nodejs-docker-express:*
+    ports:
+      - "8090:80"
+    volumes:
+      - "uploads:/app/uploads"
+      - "documents:/app/uploads/img"    
+    restart: always  
