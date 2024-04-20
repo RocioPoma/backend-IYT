@@ -1,11 +1,13 @@
-//require('dotenv').config();
+require('dotenv').config();
 const http = require('http');
 /* const express = require("express");
 const server = express(); */
 const app = require('./index');
 const server = http.createServer(app);
 
-server.listen(80, () => {
+const PORT=process.env.PORT;
+
+server.listen(PORT, () => {
   console.log("FUNCIONA")
 });
 
