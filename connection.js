@@ -11,7 +11,7 @@ const pool = mysql.createPool({
     user: 'cln5c4yrh0cjzcgpm4icih9ri',
 
     password: 'c3oLwWprrgZlX1U7nkdv6ZIC',
-    database: 'bdd_campeonatos',
+    database: 'bdd_campeonatos_v02',
 });
 
 // Obtener una conexión del pool y realizar operaciones
