@@ -34,7 +34,7 @@ router.post('/add', multer.single('foto'), auth.authenticateToken, checkRole.che
             nombre: jugador.nombre,
             ap_paterno: jugador.ap_paterno,
             ap_materno: jugador.ap_materno,
-            fecha_nacimiento: fecha.toISOString(), //convierte a tipo fecha segun la ISO
+            fecha_nacimiento: jugador.fecha_nacimiento, //convierte a tipo fecha segun la ISO
             sexo: jugador.sexo,
             decendencia: jugador.decendencia,
             clubId: jugador.clubId,
