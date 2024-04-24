@@ -27,14 +27,14 @@ router.post('/add', multer.single('foto'), auth.authenticateToken, checkRole.che
     let jugador = req.body;
     let datos = {};
     let fecha = new Date(jugador.fecha_nacimiento); //convierte a tipo fecha
-
+    console.log(jugador);
     if (!file) {
         datos = {
             ci: jugador.ci,
             nombre: jugador.nombre,
             ap_paterno: jugador.ap_paterno,
             ap_materno: jugador.ap_materno,
-            fecha_nacimiento: jugador.fecha_nacimiento, //convierte a tipo fecha segun la ISO
+            fecha_nacimiento: fecha, //convierte a tipo fecha segun la ISO
             sexo: jugador.sexo,
             decendencia: jugador.decendencia,
             clubId: jugador.clubId,
@@ -48,7 +48,7 @@ router.post('/add', multer.single('foto'), auth.authenticateToken, checkRole.che
             nombre: jugador.nombre,
             ap_paterno: jugador.ap_paterno,
             ap_materno: jugador.ap_materno,
-            fecha_nacimiento: fecha.toISOString(),
+            fecha_nacimiento: fecha,
             sexo: jugador.sexo,
             decendencia: jugador.decendencia,
             clubId: jugador.clubId,
@@ -142,7 +142,7 @@ router.patch('/update', multer.single('foto'), auth.authenticateToken, checkRole
             nombre: jugador.nombre,
             ap_paterno: jugador.ap_paterno,
             ap_materno: jugador.ap_materno,
-            fecha_nacimiento: fecha.toISOString(), //convierte a tipo fecha segun la ISO
+            fecha_nacimiento: fecha, //convierte a tipo fecha segun la ISO
             sexo: jugador.sexo,
             decendencia: jugador.decendencia,
             clubId: jugador.clubId,
@@ -156,7 +156,7 @@ router.patch('/update', multer.single('foto'), auth.authenticateToken, checkRole
             nombre: jugador.nombre,
             ap_paterno: jugador.ap_paterno,
             ap_materno: jugador.ap_materno,
-            fecha_nacimiento: fecha.toISOString(),
+            fecha_nacimiento: fecha,
             sexo: jugador.sexo,
             decendencia: jugador.decendencia,
             clubId: jugador.clubId,

@@ -35,8 +35,8 @@ router.post('/add', multer.single('convocatoria'), auth.authenticateToken, check
     if (!file) {
         datos = {
             nombre_campeonato: campeonato.nombre_campeonato,
-            fecha_inicio: fecha_i.toISOString(), //convierte a tipo fecha segun la ISO
-            fecha_fin: fecha_f.toISOString(), //convierte a tipo fecha segun la ISO
+            fecha_inicio: fecha_i, //convierte a tipo fecha segun la ISO
+            fecha_fin: fecha_f, //convierte a tipo fecha segun la ISO
             convocatoria:'',
             gestion: campeonato.gestion,
             status:'true'
@@ -44,8 +44,8 @@ router.post('/add', multer.single('convocatoria'), auth.authenticateToken, check
     } else {
         datos = {
             nombre_campeonato: campeonato.nombre_campeonato,
-            fecha_inicio: fecha_i.toISOString(), //convierte a tipo fecha segun la ISO
-            fecha_fin: fecha_f.toISOString(), //convierte a tipo fecha segun la ISO
+            fecha_inicio: fecha_i, //convierte a tipo fecha segun la ISO
+            fecha_fin: fecha_f, //convierte a tipo fecha segun la ISO
             convocatoria:req.file.filename,
             gestion: campeonato.gestion,
             status:'true'
@@ -87,8 +87,8 @@ router.patch('/update',multer.single('convocatoria'), auth.authenticateToken, ch
         datos = {
             id: campeonato.id,
             nombre_campeonato: campeonato.nombre_campeonato,
-            fecha_inicio: fecha_i.toISOString(), 
-            fecha_fin: fecha_f.toISOString(), 
+            fecha_inicio: fecha_i, 
+            fecha_fin: fecha_f, 
             convocatoria:campeonato.nombre_conv,
             gestion: campeonato.gestion
         }
@@ -96,8 +96,8 @@ router.patch('/update',multer.single('convocatoria'), auth.authenticateToken, ch
         datos = {
             id: campeonato.id,
             nombre_campeonato: campeonato.nombre_campeonato,
-            fecha_inicio: fecha_i.toISOString(), 
-            fecha_fin: fecha_f.toISOString(), 
+            fecha_inicio: fecha_i, 
+            fecha_fin: fecha_f, 
             convocatoria:req.file.filename,
             gestion: campeonato.gestion
         }
