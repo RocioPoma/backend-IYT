@@ -24,7 +24,7 @@ router.get('/get/:id_club/:id_contempla', auth.authenticateToken, (req, res, nex
     const id_club = req.params.id_club;
     const id_contempla = req.params.id_contempla;
     
-    connection.query("select j.ci,j.nombre,j.ap_paterno,j.ap_materno, ej.id_club, ej.estado, TIMESTAMPDIFF(YEAR,j.fecha_nacimiento,CURDATE()) AS edad,"
+    connection.query("select j.ci,j.nombre,j.ap_paterno,j.ap_materno, ej.id_club, ej.estado,DATE_FORMAT(j.fecha_nacimiento, '%d-%m-%Y') as fecha_nac, TIMESTAMPDIFF(YEAR,j.fecha_nacimiento,CURDATE()) AS edad,"
         + " case when ej.id_club!=? then false else true end as checked"
         + " from jugador j, equipo_jugador ej, equipo e where ej.id_club=? and ej.ci=j.ci and e.id_club=ej.id_club and e.id_contempla=ej.id_contempla and e.id_contempla=? order by j.nombre", [id_club, id_club, id_contempla], (err, results) => {
             if (!err) {

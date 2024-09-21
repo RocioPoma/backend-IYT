@@ -7,6 +7,7 @@ const server = http.createServer(app);
 
 const PORT=process.env.PORT;
 
+//servidor
 server.listen(PORT, () => {
   console.log("FUNCIONA")
 });

@@ -103,8 +103,8 @@ router.get('/getJugadoresByEdad/:id_club/:sexo/:edad_min/:edad_max', auth.authen
     const edad_min = req.params.edad_min;
     const edad_max = req.params.edad_max;
     if (sexo === 'Masculino' || sexo === 'Femenino') {
-        var query = "SELECT *, TIMESTAMPDIFF(YEAR, fecha_nacimiento, CURDATE()) AS edad"
-            + " FROM jugador  where sexo = ? AND clubId = ? AND  TIMESTAMPDIFF(YEAR, fecha_nacimiento, CURDATE()) BETWEEN ? AND ?";
+        var query = "SELECT *,DATE_FORMAT(jugador.fecha_nacimiento, '%d-%m-%Y') as fecha_nac, TIMESTAMPDIFF(YEAR, fecha_nacimiento, CURDATE()) AS edad"
+            + " FROM jugador  where sexo = ? AND clubId = ? AND  TIMESTAMPDIFF(YEAR, fecha_nacimiento, CURDATE()) BETWEEN ? AND ? order by nombre";
         connection.query(query, [sexo, id_club, edad_min, edad_max], (err, results) => {
             if (!err) {
                 return res.status(200).json(results);
@@ -114,8 +114,8 @@ router.get('/getJugadoresByEdad/:id_club/:sexo/:edad_min/:edad_max', auth.authen
             }
         })
     } else {
-        var query = "SELECT *, TIMESTAMPDIFF(YEAR, fecha_nacimiento, CURDATE()) AS edad"
-            + " FROM jugador  where  clubId = ? AND  TIMESTAMPDIFF(YEAR, fecha_nacimiento, CURDATE()) BETWEEN ? AND ?";
+        var query = "SELECT *, DATE_FORMAT(jugador.fecha_nacimiento, '%d-%m-%Y') as fecha_nac,TIMESTAMPDIFF(YEAR, fecha_nacimiento, CURDATE()) AS edad"
+            + " FROM jugador  where  clubId = ? AND  TIMESTAMPDIFF(YEAR, fecha_nacimiento, CURDATE()) BETWEEN ? AND ? order by nombre";
         connection.query(query, [id_club, edad_min, edad_max], (err, results) => {
             if (!err) {
                 return res.status(200).json(results);
@@ -225,7 +225,7 @@ router.patch('/subir_documento', multer.single('documento'), auth.authenticateTo
             return res.status(500).json(err);
         }
     })
-  
+
 })
 
 
