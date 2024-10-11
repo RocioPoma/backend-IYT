@@ -38,7 +38,7 @@ router.get('/get/:id_campeonato', auth.authenticateToken, (req, res, next) => {
 //-------------------------------- LISTAR DATOS  DE UNA CATEGORIA ESPECIFICA-----------------------------------------------------
 router.get('/getById/:id', auth.authenticateToken, (req, res, next) => {
     const { id } = req.params;
-    connection.query('select con.id, con.edad_min,con.edad_max,con.genero,con.estado,con.id_disciplina,con.id_categoria,con.num_max_jugadores,con.sistema_de_juego,con.requisito,con.edad_obligatoria,camp.nombre_campeonato, d.nombre as nombre_disciplina, cat.nombre as nombre_categoria '
+    connection.query('select con.id, con.edad_min,con.edad_max,con.genero,con.estado,con.id_disciplina,con.id_categoria,con.num_max_jugadores,con.sistema_de_juego,con.requisito,con.edad_obligatoria,camp.nombre_campeonato,camp.gestion, d.nombre as nombre_disciplina, cat.nombre as nombre_categoria '
         + 'from contempla con, campeonato camp, disciplina d, categoria cat '
         + 'where con.id_campeonato=camp.id and con.id_disciplina=d.id and con.id_categoria=cat.id and con.id=?', [id], (err, results) => {
             if (!err) {

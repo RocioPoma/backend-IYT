@@ -6,8 +6,8 @@ var checkRole = require('../services/checkRole');
 
 
 //-------------------------------- MOSTRAR/LISTAR TODAS LAS DISCIPLINAS-----------------------
-router.get("/get_all", auth.authenticateToken, (req, res) => {
-    connection.query('SELECT * FROM  DISCIPLINA', (err, results) => {
+router.get("/get_all",  (req, res) => {
+    connection.query('SELECT * FROM  disciplina', (err, results) => {
         if (!err) {
             return res.status(200).json(results);
         }
@@ -18,8 +18,8 @@ router.get("/get_all", auth.authenticateToken, (req, res) => {
 });
 
 //-------------------------------- MOSTRAR/LISTAR DISCIPLINAS HABILITADAS -----------------------
-router.get("/get", auth.authenticateToken, (req, res) => {
-    connection.query("SELECT * FROM  DISCIPLINA WHERE estado='true'", (err, results) => {
+router.get("/get",  (req, res) => {
+    connection.query("SELECT * FROM  disciplina WHERE estado='true'", (err, results) => {
         if (!err) {
             return res.status(200).json(results);
         }

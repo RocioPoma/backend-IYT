@@ -5,8 +5,8 @@ var auth = require('../services/authentication');
 var checkRole = require('../services/checkRole');
 
 //-------------------------------- MOSTRAR/LISTAR -----------------------
-router.get("/get_all", auth.authenticateToken, (req, res) => {
-    connection.query('SELECT * FROM  CATEGORIA', (err, results) => {
+router.get("/get_all",  (req, res) => {
+    connection.query('SELECT * FROM  categoria', (err, results) => {
         if (!err) {
             return res.status(200).json(results);
         }
@@ -17,8 +17,8 @@ router.get("/get_all", auth.authenticateToken, (req, res) => {
 });
 
 //-------------------------------- MOSTRAR/LISTAR SOLO LOS HABILITADOS-----------------------
-router.get("/get", auth.authenticateToken, (req, res) => {
-    connection.query("SELECT * FROM  CATEGORIA WHERE estado='true'", (err, results) => {
+router.get("/get",  (req, res) => {
+    connection.query("SELECT * FROM  categoria WHERE estado='true'", (err, results) => {
         if (!err) {
             return res.status(200).json(results);
         }

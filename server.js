@@ -5,7 +5,7 @@ const server = express(); */
 const app = require('./index');
 const server = http.createServer(app);
 
-const PORT=process.env.PORT;
+const PORT = process.env.PORT;
 
 //servidor
 server.listen(PORT, () => {
@@ -14,7 +14,7 @@ server.listen(PORT, () => {
 
 
 // LOCAL HOST
-// server.listen(4000,()=>{
+// server.listen(4000, () => {
 //   console.log('FUNCIONA');
 // })
 

@@ -134,7 +134,7 @@ router.patch('/update',multer.single('convocatoria'), auth.authenticateToken, ch
 //-----------------------------------------------------------------------------------------------------------
 
 //------------ ELIMINAR CAMPEONATO---------------------------------------------------------------------------
-router.delete('/delete/:id',auth.authenticateToken,checkRole.checkRole,(req,res,next)=>{
+router.delete('/delete/:id',(req,res,next)=>{
     const id = req.params.id;
     deleteFile(id);
     var query = "delete from campeonato where id=?";
