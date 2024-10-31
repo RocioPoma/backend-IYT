@@ -99,19 +99,30 @@ router.delete('/delete/:id',auth.authenticateToken,(req,res,next)=>{
             return res.status(200).json({message:"Reglamento eliminado con éxito"});
         }
         else{
+            console.error(error.message);
             return res.status(500).json(err);
         }
     })
 })
 
-function deleteFile(id) {
-    connection.query('SELECT * FROM  reglamento WHERE id = ?', [id], (err, rows, fields) => {
-        [{ documento }] = rows;
-        console.log("Documento: "+documento);
-        if(documento ===''){
-            console.log('Documento eliminado');
-        }else{
-            fs.unlinkSync('./uploads/img/' + documento);    
+function deleteFile(id) { 
+    connection.query('SELECT * FROM reglamento WHERE id = ?', [id], (err, rows, fields) => {
+        if (err) throw err;
+
+        if (rows.length > 0) {
+            const [{ documento }] = rows;
+            console.log("Documento: " + documento);
+
+            const filePath = './uploads/img/' + documento;
+
+            if (!fs.existsSync(filePath)) {
+                console.log('Documento eliminado');
+            } else {
+                fs.unlinkSync(filePath);
+                console.log('Documento eliminado del sistema de archivos');
+            }
+        } else {
+            console.log('No se encontró el documento en la base de datos');
         }
     });
 }

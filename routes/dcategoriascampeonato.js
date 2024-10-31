@@ -6,7 +6,7 @@ var checkRole = require('../services/checkRole');
 
 //CONTEMPLA CAMPEONATO, DISCIPLINA Y CATEGORIA
 //-------------------------------- MOSTRAR/LISTAR TODOS LOS CATEGORIAS -----------------------
-router.get("/get_all", auth.authenticateToken, (req, res) => {
+router.get("/get_all",  (req, res) => {
     connection.query('select con.id, con.edad_min,con.edad_max,con.genero,camp.nombre_campeonato,'
         + ' d.nombre as nombre_disciplina, cat.nombre as nombre_categoria '
         + 'from contempla con, campeonato camp, disciplina d, categoria cat '
@@ -21,7 +21,7 @@ router.get("/get_all", auth.authenticateToken, (req, res) => {
 });
 
 //-------------------------------- LISTAR CAT Y DISC  DE UN CAMPEONATO ESPECIFICO-----------------------------------------------------
-router.get('/get/:id_campeonato', auth.authenticateToken, (req, res, next) => {
+router.get('/get/:id_campeonato',  (req, res, next) => {
     const { id_campeonato } = req.params;
     connection.query('select con.id, con.edad_min,con.edad_max,con.genero,con.estado,con.id_disciplina,con.id_categoria,con.num_max_jugadores,con.sistema_de_juego,camp.nombre_campeonato, d.nombre as nombre_disciplina, cat.nombre as nombre_categoria '
         + 'from contempla con, campeonato camp, disciplina d, categoria cat '
@@ -36,7 +36,7 @@ router.get('/get/:id_campeonato', auth.authenticateToken, (req, res, next) => {
 })
 
 //-------------------------------- LISTAR DATOS  DE UNA CATEGORIA ESPECIFICA-----------------------------------------------------
-router.get('/getById/:id', auth.authenticateToken, (req, res, next) => {
+router.get('/getById/:id', (req, res, next) => {
     const { id } = req.params;
     connection.query('select con.id, con.edad_min,con.edad_max,con.genero,con.estado,con.id_disciplina,con.id_categoria,con.num_max_jugadores,con.sistema_de_juego,con.requisito,con.edad_obligatoria,camp.nombre_campeonato,camp.gestion, d.nombre as nombre_disciplina, cat.nombre as nombre_categoria '
         + 'from contempla con, campeonato camp, disciplina d, categoria cat '
@@ -50,7 +50,7 @@ router.get('/getById/:id', auth.authenticateToken, (req, res, next) => {
         })
 })
 //-------------------------------- AGREGAR --------------------------------
-router.post('/add', auth.authenticateToken, (req, res, next) => {
+router.post('/add', (req, res, next) => {
     let dcat_campeonato = req.body;
     let datos = {};
 
@@ -73,6 +73,7 @@ router.post('/add', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json({ message: "Agregado con exito" });
         }
         else {
+            console.log(err);  // Ver el error en la consola del servidor
             return res.status(500).json(err);
         }
     });
@@ -80,7 +81,7 @@ router.post('/add', auth.authenticateToken, (req, res, next) => {
 
 
 //------------------------ MODIFICAR ---------------------------------------------------
-router.patch('/update', auth.authenticateToken, (req, res, next) => {
+router.patch('/update',  (req, res, next) => {
     let dcat_campeonato = req.body;
     let datos = {};
 
@@ -116,7 +117,7 @@ router.patch('/update', auth.authenticateToken, (req, res, next) => {
 
 //------------ ELIMINAR---------------------------------------------------------------------------
 
-router.delete('/delete/:id', auth.authenticateToken, (req, res, next) => {
+router.delete('/delete/:id',  (req, res, next) => {
     const id = req.params.id;
     console.log("eliminar id "+ id);
     var query = "delete from contempla where id=?";
@@ -136,7 +137,7 @@ router.delete('/delete/:id', auth.authenticateToken, (req, res, next) => {
 //-------------------------------------------------------------------------------------------------
 
 //------------------ CAMBIAR ESTADO ----------------------------------------------------------------
-router.patch('/updateStatus', auth.authenticateToken, checkRole.checkRole, (req, res, next) => {
+router.patch('/updateStatus',  (req, res, next) => {
     let categoria = req.body;
     var query = "update contempla set estado=? where id=?";
     connection.query(query, [categoria.status, categoria.id], (err, results) => {

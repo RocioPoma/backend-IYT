@@ -54,7 +54,7 @@ router.post('/login',(req,res)=>{
             else if(results[0].password==user.password){
                 //GUARDAMOS CIFRADO LA CONTRASENA
                 const data={ nombre: results[0].name}
-                const response ={ email: results[0].email, role: results[0].role}
+                const response ={ nombre: results[0].name,email: results[0].email, role: results[0].role}
                 const accessToken = jwt.sign(response,'qwertyToken',{ expiresIn: '8h'})
                 res.status(200).json({ token: accessToken, data:data});
             }

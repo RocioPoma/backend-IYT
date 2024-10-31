@@ -136,9 +136,10 @@ router.patch('/update', multer.single('foto'), auth.authenticateToken, checkRole
     let datos = {};
     let fecha = new Date(jugador.fecha_nacimiento);
 
+    console.log(datos)
     if (!file) {
         datos = {
-            ci: jugador.ci,
+            ci: jugador.ci_mod,
             nombre: jugador.nombre,
             ap_paterno: jugador.ap_paterno,
             ap_materno: jugador.ap_materno,
@@ -152,7 +153,7 @@ router.patch('/update', multer.single('foto'), auth.authenticateToken, checkRole
         }
     } else {
         datos = {
-            ci: jugador.ci,
+            ci: jugador.ci_mod,
             nombre: jugador.nombre,
             ap_paterno: jugador.ap_paterno,
             ap_materno: jugador.ap_materno,
@@ -165,8 +166,10 @@ router.patch('/update', multer.single('foto'), auth.authenticateToken, checkRole
             status: 'true'
         }
     }
+
+    console.log(datos)
     var query = "update jugador set ci=?,nombre=?,ap_paterno=?,ap_materno=?,fecha_nacimiento=?,sexo=?,decendencia=?,clubId=?,foto=? where ci=?";
-    connection.query(query, [datos.ci, datos.nombre, datos.ap_paterno, datos.ap_materno, datos.fecha_nacimiento, datos.sexo, datos.decendencia, datos.clubId, datos.foto, datos.ci], (err, results) => {
+    connection.query(query, [datos.ci, datos.nombre, datos.ap_paterno, datos.ap_materno, datos.fecha_nacimiento, datos.sexo, datos.decendencia, datos.clubId, datos.foto, jugador.ci], (err, results) => {
         if (!err) {
             if (results.affectedRows == 0) {
                 return res.status(404).json({ message: "Jugador CI no encontrado" });

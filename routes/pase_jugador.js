@@ -31,7 +31,7 @@ router.post('/add', multer.single('documento'), auth.authenticateToken, (req, re
         id_club_solicitante: pase.id_club_solicitante,
         id_club_solicitado: pase.id_club_solicitado,
         ci: pase.ci,
-        fecha: fecha.toISOString(), //convierte a tipo fecha segun la ISO
+        fecha: fecha, //convierte a tipo fecha segun la ISO
         documento: req.file.filename,
         estado: 'true'
     }
@@ -43,6 +43,7 @@ router.post('/add', multer.single('documento'), auth.authenticateToken, (req, re
 
         }
         else {
+            console.error(err.message);
             return res.status(500).json(err);
         }
     });
@@ -62,7 +63,7 @@ router.patch('/update', multer.single('documento'), auth.authenticateToken, (req
             id_club_solicitante: pase.id_club_solicitante,
             id_club_solicitado: pase.id_club_solicitado,
             ci: pase.ci,
-            fecha: fecha.toISOString(), //convierte a tipo fecha segun la ISO
+            fecha: fecha, //convierte a tipo fecha segun la ISO
             documento: req.file.filename,
             estado: 'true'
         }
@@ -72,7 +73,7 @@ router.patch('/update', multer.single('documento'), auth.authenticateToken, (req
             id_club_solicitante: pase.id_club_solicitante,
             id_club_solicitado: pase.id_club_solicitado,
             ci: pase.ci,
-            fecha: fecha.toISOString(), //convierte a tipo fecha segun la ISO
+            fecha: fecha, //convierte a tipo fecha segun la ISO
             documento: req.file.filename,
             estado: 'true'
         }
@@ -97,9 +98,10 @@ router.patch('/update', multer.single('documento'), auth.authenticateToken, (req
 
 router.delete('/delete/:id_pase', auth.authenticateToken, (req, res, next) => {
     const id_pase = req.params.id_pase;
-    deleteFile(id);
+    console.log(id_pase)
+    deleteFile(id_pase);
     var query = "delete from pase_jugador where id_pase=?";
-    connection.query(query, [id], (err, results) => {
+    connection.query(query, [id_pase], (err, results) => {
         if (!err) {
             if (results.affectedRows == 0) {
                 return res.status(404).json({ message: "Id Pase no encontrado" });
@@ -107,6 +109,7 @@ router.delete('/delete/:id_pase', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json({ message: "Pase jugador eliminado con éxito" });
         }
         else {
+            console.error(err.message);
             return res.status(500).json(err);
         }
     })
