@@ -90,7 +90,8 @@ router.patch('/update', auth.authenticateToken, checkRole.checkRole, (req, res, 
 //---------------- LOGIN ------------------------
 router.post('/login', (req, res) => {
     const user = req.body;
-    query = "select name,email,password,role,status from user where email=?";
+    query = "select name,email,password,role,id_club,status from user where email=?";
+
     connection.query(query, [user.email], (err, results) => {
         if (!err) {
             if (results.length <= 0 || results[0].password != user.password) {
@@ -102,7 +103,7 @@ router.post('/login', (req, res) => {
             else if (results[0].password == user.password) {
                 //GUARDAMOS CIFRADO LA CONTRASENA
                 const data = { nombre: results[0].name }
-                const response = { nombre: results[0].name, email: results[0].email, role: results[0].role }
+                const response = { nombre: results[0].name, email: results[0].email, role: results[0].role, id_club: results[0].id_club }
                 const accessToken = jwt.sign(response, 'qwertyToken', { expiresIn: '8h' })
                 res.status(200).json({ token: accessToken, data: data });
             }

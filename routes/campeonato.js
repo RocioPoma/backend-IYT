@@ -10,7 +10,7 @@ const fs = require('fs');
 //-----------------------------------------------------------------------------------------------------
 
 //------------LISTAR CAMPEONATO------------------------------------------------------------------------
-router.get('/get',auth.authenticateToken,(req,res,next)=>{
+router.get('/get',(req,res,next)=>{
     console.log("LLEGO AQUI")
     var query = "SELECT id,nombre_campeonato, fecha_inicio,fecha_fin, DATE_FORMAT(fecha_inicio, '%d-%m-%Y') as fecha_i,DATE_FORMAT(fecha_fin, '%d-%m-%Y') as fecha_f, convocatoria,gestion, status"
     +" FROM campeonato order by gestion DESC";

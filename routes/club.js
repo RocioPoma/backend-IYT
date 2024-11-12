@@ -32,6 +32,19 @@ router.get('/get',auth.authenticateToken,(req,res,next)=>{
     })
 })
 
+//------------------------ LISTAR CLUBS SEGUN ID---------------------------------------------------
+router.get('/get/:id_club', auth.authenticateToken, (req, res, next) => {
+    const { id_club } = req.params;
+    connection.query('select * from club where id=?', [id_club], (err, results) => {
+            if (!err) {
+                return res.status(200).json(results);
+            }
+            else {
+                return res.status(500).json(err);
+            }
+        })
+})
+
 //------------------------ MODIFICAR CLUBS---------------------------------------------------
 router.patch('/update',auth.authenticateToken,checkRole.checkRole,(req,res,next)=>{
     let club =req.body;
