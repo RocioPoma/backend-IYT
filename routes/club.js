@@ -6,7 +6,7 @@ var checkRole = require('../services/checkRole');
 
 
 //------------------------ AGREGAR CLUBS---------------------------------------------------
-router.post('/add',auth.authenticateToken,checkRole.checkRole,(req,res,next)=>{
+router.post('/add',auth.authenticateToken,(req,res,next)=>{
     let club = req.body;
     query = "insert into club (nombre,comunidad) value(?,?)";
     connection.query(query,[club.nombre,club.comunidad],(err,results)=>{
@@ -32,7 +32,7 @@ router.get('/get',auth.authenticateToken,(req,res,next)=>{
     })
 })
 
-//------------------------ LISTAR CLUBS SEGUN ID---------------------------------------------------
+//------------------------ LISTAR CLUBS SEGUN ID-------------------------------------------
 router.get('/get/:id_club', auth.authenticateToken, (req, res, next) => {
     const { id_club } = req.params;
     connection.query('select * from club where id=?', [id_club], (err, results) => {
@@ -46,7 +46,7 @@ router.get('/get/:id_club', auth.authenticateToken, (req, res, next) => {
 })
 
 //------------------------ MODIFICAR CLUBS---------------------------------------------------
-router.patch('/update',auth.authenticateToken,checkRole.checkRole,(req,res,next)=>{
+router.patch('/update',auth.authenticateToken,(req,res,next)=>{
     let club =req.body;
     var query = "update club set nombre=?,comunidad=? where id=?";
     connection.query(query,[club.nombre,club.comunidad,club.id],(err,results)=>{

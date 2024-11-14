@@ -6,7 +6,7 @@ var checkRole = require('../services/checkRole');
 
 
 //------------------------ AGREGAR JUGADORES A UN EQUIPO ---------------------------------------------------
-router.post('/add', auth.authenticateToken, checkRole.checkRole, (req, res, next) => {
+router.post('/add', auth.authenticateToken, (req, res, next) => {
     let dato = req.body;
     query = "insert into equipo_jugador (id_club,id_contempla,ci,estado) value(?,?,?,'false')";
     connection.query(query, [dato.id_club, dato.id_contempla, dato.ci], (err, results) => {
@@ -103,7 +103,7 @@ router.get('/get', auth.authenticateToken, (req, res, next) => {
 })
 
 //------------------------ MODIFICAR ESTADO JUGADOR---------------------------------------------------
-router.patch('/updateEstado', auth.authenticateToken, checkRole.checkRole, (req, res, next) => {
+router.patch('/updateEstado', auth.authenticateToken,(req, res, next) => {
     let eqj = req.body; //eqj = equipo_jugador
     var query = "update equipo_jugador set estado=? where id_club=? and id_contempla=? and ci=?";
     connection.query(query, [eqj.estado,eqj.id_club,eqj.id_contempla,eqj.ci], (err, results) => {
