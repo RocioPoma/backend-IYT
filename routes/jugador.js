@@ -85,7 +85,7 @@ router.post('/add', multer.single('foto'), auth.authenticateToken, checkRole.che
 router.get('/getByClub/:id', auth.authenticateToken, (req, res, next) => {
     const id = req.params.id;
     var query = "select ci,nombre,ap_paterno,ap_materno, fecha_nacimiento"
-        + " from jugador where clubId=? and status='true'";
+        + " from jugador where clubId=? and status='true' order by nombre asc";
     connection.query(query, [id], (err, results) => {
         if (!err) {
             return res.status(200).json(results);

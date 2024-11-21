@@ -9,19 +9,19 @@ const fs = require('fs');
 //-------------------------------- MOSTRAR/LISTAR REGLAMENTO -----------------------
 router.get("/get", auth.authenticateToken, (req, res) => {
     connection.query("select pj.*, c1.nombre as club_solicitante,c2.nombre as club_solicitado,j.ci,j.nombre,j.ap_paterno,j.ap_materno, DATE_FORMAT(pj.fecha, '%d-%m-%Y') as fecha2 "
-    +" from pase_jugador pj, club c1,club c2,jugador j"
-    +" where pj.id_club_solicitante=c1.id and id_club_solicitado=c2.id and pj.ci=j.ci;", (err, results) => {
-        if (!err) {
-            return res.status(200).json(results);
-        }
-        else {
-            return res.status(500).json(err);
-        }
-    });
+        + " from pase_jugador pj, club c1,club c2,jugador j"
+        + " where pj.id_club_solicitante=c1.id and id_club_solicitado=c2.id and pj.ci=j.ci;", (err, results) => {
+            if (!err) {
+                return res.status(200).json(results);
+            }
+            else {
+                return res.status(500).json(err);
+            }
+        });
 });
 
 //-------------------------------- AGREGAR PASE JUGADOR--------------------------------
-router.post('/add', multer.single('documento'), auth.authenticateToken, (req, res, next) => {
+/*router.post('/add', multer.single('documento'), auth.authenticateToken, (req, res, next) => {
     const file = req.file;
     let pase = req.body;
     let datos = {};
@@ -47,8 +47,67 @@ router.post('/add', multer.single('documento'), auth.authenticateToken, (req, re
             return res.status(500).json(err);
         }
     });
+
+    var query = "update jugador set clubId=? where ci=?";
+    connection.query(query, [pase.id_club_solicitante, pase.ci], (err, results) => {
+        if (!err) {
+            if (results.affectedRows == 0) {
+                return res.status(404).json({ message: "Jugador CI no encontrado" });
+            }
+            return res.status(200).json({ message: "Club ID actualizado con éxito" });
+        } else {
+            return res.status(500).json(err);
+        }
+    });
+ 
+
+
+    console.log('Agregado Correctamente');
+});*/
+
+router.post('/add', multer.single('documento'), auth.authenticateToken, (req, res, next) => {
+    const file = req.file;
+    let pase = req.body;
+    let datos = {};
+    let fecha = new Date(pase.fecha); // Convierte la fecha a tipo Date
+
+    datos = {
+        id_club_solicitante: pase.id_club_solicitante,
+        id_club_solicitado: pase.id_club_solicitado,
+        ci: pase.ci,
+        fecha: fecha, // Convierte a tipo fecha ISO
+        documento: req.file.filename,
+        estado: 'true'
+    };
+
+    // Inserción en la tabla pase_jugador
+    connection.query('INSERT INTO pase_jugador SET ?', [datos], (err, results) => {
+        if (err) {
+            console.error(err.message);
+            return res.status(500).json({ message: "Error al agregar pase jugador", error: err.message });
+        }
+
+        // Si la inserción fue exitosa, actualizar el club del jugador
+        const queryUpdate = "UPDATE jugador SET clubId=? WHERE ci=?";
+        connection.query(queryUpdate, [pase.id_club_solicitante, pase.ci], (errUpdate, resultsUpdate) => {
+            if (errUpdate) {
+                console.error(errUpdate.message);
+                return res.status(500).json({ message: "Error al actualizar jugador", error: errUpdate.message });
+            }
+
+            if (resultsUpdate.affectedRows === 0) {
+                return res.status(404).json({ message: "Jugador CI no encontrado" });
+            }
+
+            // Respuesta exitosa
+            return res.status(200).json({ message: "Pase Jugador agregado y Club ID actualizado con éxito" });
+        });
+    });
+    
     console.log('Agregado Correctamente');
 });
+
+
 
 
 //------------------------ MODIFICAR REGLAMENTO---------------------------------------------------
