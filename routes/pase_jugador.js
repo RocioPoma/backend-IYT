@@ -174,14 +174,48 @@ router.delete('/delete/:id_pase', auth.authenticateToken, (req, res, next) => {
     })
 })
 
+// function deleteFile(id) {
+//     connection.query('SELECT * FROM  pase_jugador WHERE id_pase = ?', [id], (err, rows, fields) => {
+//         [{ documento }] = rows;
+//         console.log("Documento: " + documento);
+//         if (documento === '') {
+//             console.log('Documento eliminado');
+//         } else {
+//             fs.unlinkSync('./uploads/img/' + documento);
+//         }
+//     });
+// }
+
 function deleteFile(id) {
-    connection.query('SELECT * FROM  pase_jugador WHERE id_pase = ?', [id], (err, rows, fields) => {
-        [{ documento }] = rows;
+    connection.query('SELECT * FROM pase_jugador WHERE id_pase = ?', [id], (err, rows) => {
+        if (err) {
+            console.error('Error en la consulta:', err);
+            return;
+        }
+
+        if (rows.length === 0) {
+            console.log('No se encontró ningún registro con el ID proporcionado.');
+            return;
+        }
+
+        const { documento } = rows[0];
         console.log("Documento: " + documento);
-        if (documento === '') {
-            console.log('Documento eliminado');
+
+        if (!documento) {
+            console.log('No hay documento asociado al registro.');
         } else {
-            fs.unlinkSync('./uploads/img/' + documento);
+            const filePath = `./uploads/img/${documento}`;
+
+            if (fs.existsSync(filePath)) {
+                try {
+                    fs.unlinkSync(filePath);
+                    console.log('Documento eliminado exitosamente.');
+                } catch (error) {
+                    console.error('Error al eliminar el archivo:', error);
+                }
+            } else {
+                console.log('El documento no existe en la carpeta indicada.');
+            }
         }
     });
 }
