@@ -31,7 +31,27 @@ const auspiciadorRoute = require('./routes/auspiciador');
 const app = express();
 
 //Middleware
-app.use(cors({ origen: '*' }));
+//app.use(cors({ origen: '*' }));
+// ✅ CORRECTO — Configuración de CORS
+const allowedOrigins = ['https://iyt.netlify.app']; // tu dominio de Netlify
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('No permitido por CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true, // si usas tokens o cookies
+}));
+
+// Manejar preflight (opcional pero recomendable)
+app.options('*', cors());
+
+////-----------------------------------
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
