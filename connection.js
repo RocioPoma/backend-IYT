@@ -3,15 +3,12 @@ const mysql = require('mysql2');
 // Configuración de conexión para el pool
 const pool = mysql.createPool({
     connectionLimit: 30,
-    //SERVIDOR
-      host: '13.140.229.173',
-      port: 3306,
-
-    //host: 'cln5c4yri00q6pmcg18ba0o41',
+    host: '13.140.229.173',
+    port: 3306,
     user: 'app_node',
-
     password: 'Proverbios3:5',
     database: 'bdd_campeonatos_v02',
+    ssl: { rejectUnauthorized: false }
 });
 
 // Obtener una conexión del pool y realizar operaciones
