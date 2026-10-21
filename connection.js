@@ -4,13 +4,13 @@ const mysql = require('mysql');
 const pool = mysql.createPool({
     connectionLimit: 30,
     //SERVIDOR
-      host: '181.188.156.195',
-      port: 18006,
+      host: '13.140.229.173',
+      port: 3306,
 
     //host: 'cln5c4yri00q6pmcg18ba0o41',
-    user: 'cln5c4yrh0cjzcgpm4icih9ri',
+    user: 'app_node',
 
-    password: 'c3oLwWprrgZlX1U7nkdv6ZIC',
+    password: 'Proverbios3:5',
     database: 'bdd_campeonatos_v02',
 });
 
