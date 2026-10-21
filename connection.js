@@ -1,4 +1,4 @@
-const mysql = require('mysql');
+const mysql = require('mysql2');
 
 // Configuración de conexión para el pool
 const pool = mysql.createPool({
