@@ -1,131 +1,101 @@
-const express = require("express");
+// Equipos inscritos en una categoría de campeonato (RF05.9.2.8.1).
+// Requisito 3.3.2: el registro de equipos debe ser aprobado por el administrador.
+const express = require('express');
 const connection = require('../connection');
+const { ROLES, GRUPOS, requireRole } = require('../services/checkRole');
+const { soloSuClub } = require('../services/club');
+
 const router = express.Router();
-var auth = require('../services/authentication');
-var checkRole = require('../services/checkRole');
+const db = connection.consulta;
+const h = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-//-------------------------------- MOSTRAR/LISTAR -----------------------
-router.get("/get_all", auth.authenticateToken, (req, res) => {
-    connection.query('select  e.*, b.nombre as nombre_club'
-        + 'from equipo e, club b'
-        + 'where e.id_club=b.id', (err, results) => {
-            if (!err) {
-                return res.status(200).json(results);
-            }
-            else {
-                return res.status(500).json(err);
-            }
-        });
-});
+//------------ LISTAR TODOS LOS EQUIPOS ------------
+router.get('/get_all', h(async (req, res) => {
+  const filas = await db(
+    `SELECT e.*, COALESCE(e.estado,'aprobado') AS estado, b.nombre AS nombre_club
+     FROM equipo e JOIN club b ON e.id_club = b.id ORDER BY b.nombre`
+  );
+  res.status(200).json(filas);
+}));
 
-//-------------------------------- LISTAR EQUIPO DE UNA CATEGORIA ESPECIFICO-----------------------------------------------------
-router.get('/get/:id_contempla', auth.authenticateToken, (req, res, next) => {
-    const { id_contempla } = req.params;
-    connection.query('select  e.*, b.nombre as nombre_club, b.comunidad '
-    + 'from equipo e, club b '
-    + 'where e.id_club=b.id and e.id_contempla=?', [id_contempla], (err, results) => {
-            if (!err) {
-                return res.status(200).json(results);
-            }
-            else {
-                return res.status(500).json(err);
-            }
-        })
-})
+//------------ LISTAR EQUIPOS DE UNA CATEGORÍA (RF05.9.2.8.1.1) — público ------------
+router.get('/get/:id_contempla', h(async (req, res) => {
+  const soloAprobados = !req.usuario;
+  const filas = await db(
+    `SELECT e.*, COALESCE(e.estado,'aprobado') AS estado, b.nombre AS nombre_club, b.comunidad, b.logo,
+            (SELECT COUNT(*) FROM equipo_jugador ej WHERE ej.id_club=e.id_club AND ej.id_contempla=e.id_contempla) AS total_jugadores
+     FROM equipo e JOIN club b ON e.id_club = b.id
+     WHERE e.id_contempla=? ${soloAprobados ? "AND COALESCE(e.estado,'aprobado')='aprobado'" : ''}
+     ORDER BY e.numero_sorteo, b.nombre`,
+    [req.params.id_contempla]
+  );
+  res.status(200).json(filas);
+}));
 
+//------------ REGISTRAR EQUIPO (RF05.9.2.8.1.2) ------------
+// Si lo inscribe un delegado queda "pendiente" hasta que lo apruebe el administrador o comité técnico.
+router.post('/add', soloSuClub((req) => req.body && req.body.id_club), h(async (req, res) => {
+  const e = req.body || {};
+  if (!e.id_club || !e.id_contempla) return res.status(400).json({ message: 'Faltan el club o la categoría' });
+  const categoria = await db("SELECT estado FROM contempla WHERE id=?", [e.id_contempla]);
+  if (!categoria.length) return res.status(404).json({ message: 'Categoría no encontrada' });
+  if (categoria[0].estado === 'false') return res.status(400).json({ message: 'La categoría está desactivada' });
 
-//-------------------------------- AGREGAR --------------------------------
-router.post('/add', auth.authenticateToken, (req, res, next) => {
-    let equipo = req.body;
-    let datos = {};
-    let id_serie=equipo.id_serie;
-    if(equipo.id_serie==''){id_serie=0}
+  const estado = req.usuario.role === ROLES.DELEGADO ? 'pendiente' : 'aprobado';
+  await db('INSERT INTO equipo SET ?', [{
+    id_club: e.id_club,
+    id_contempla: e.id_contempla,
+    id_serie: e.id_serie === '' || e.id_serie == null ? 0 : e.id_serie,
+    numero_sorteo: e.numero_sorteo === '' ? null : e.numero_sorteo ?? null,
+    estado,
+  }]);
+  res.status(200).json({
+    message: estado === 'pendiente' ? 'Equipo registrado. Queda pendiente de aprobación.' : 'Equipo agregado con exito',
+  });
+}));
 
-    datos = {
-        id_club: equipo.id_club,
-        id_contempla: equipo.id_contempla,
-        id_serie: id_serie,
-        numero_sorteo: equipo.numero_sorteo
-        //estado: 'true' 
-    }
-    console.log(datos);
-    connection.query('insert into equipo set ?', [datos], (err, results) => {
-        if (!err) {
-            return res.status(200).json({ message: "Equipo agregado con exito" });
-        }
-        else {
-            return res.status(500).json(err);
-        }
-    });
-});
+//------------ APROBAR / RECHAZAR EQUIPO ------------
+router.patch('/updateStatus', requireRole(GRUPOS.GESTION), h(async (req, res) => {
+  const { id_club, id_contempla, estado } = req.body || {};
+  if (!['aprobado', 'pendiente', 'rechazado'].includes(estado)) {
+    return res.status(400).json({ message: 'Estado inválido (aprobado, pendiente o rechazado)' });
+  }
+  const r = await db('UPDATE equipo SET estado=? WHERE id_club=? AND id_contempla=?', [estado, id_club, id_contempla]);
+  if (r.affectedRows == 0) return res.status(404).json({ message: 'Id Equipo no encontrado' });
+  res.status(200).json({ message: 'Estado del equipo actualizado' });
+}));
 
+//------------ MODIFICAR EQUIPO (RF05.9.2.8.1.3) ------------
+router.patch('/update', soloSuClub((req) => req.body && req.body.id_club), h(async (req, res) => {
+  const e = req.body || {};
+  const nuevoClub = e.id_clubNew || e.id_club;
+  if (req.usuario.role === ROLES.DELEGADO && String(nuevoClub) !== String(req.usuario.id_club)) {
+    return res.status(403).json({ message: 'Como delegado solo puede gestionar el equipo de su club' });
+  }
+  const r = await db(
+    'UPDATE equipo SET id_club=?, id_serie=?, numero_sorteo=? WHERE id_club=? AND id_contempla=?',
+    [nuevoClub, e.id_serie == null || e.id_serie === '' ? 0 : e.id_serie, e.numero_sorteo ?? null, e.id_club, e.id_contempla]
+  );
+  if (r.affectedRows == 0) return res.status(404).json({ message: 'Id Equipo no encontrado' });
+  res.status(200).json({ message: 'Equipo Actualizado con exito' });
+}));
 
-//------------------------ MODIFICAR ---------------------------------------------------
-router.patch('/update', auth.authenticateToken, (req, res, next) => {
-    let equipo = req.body;
-    let datos = {};
-    let id_serie=equipo.id_serie;
-    if(equipo.id_serie==null){id_serie=0}
-
-    datos = {
-        id_club: equipo.id_club,
-        id_contempla: equipo.id_contempla,
-        id_clubNew: equipo.id_clubNew,
-        id_serie: id_serie,
-        numero_sorteo: equipo.numero_sorteo
-    }
-   console.log(datos);
-
-    var query = "update equipo set id_club=?,id_serie=?,numero_sorteo=? where id_club=? and id_contempla=?";
-    connection.query(query, [datos.id_clubNew, datos.id_serie,datos.numero_sorteo, datos.id_club, datos.id_contempla], (err, results) => {
-        if (!err) {
-            if (results.affectedRows == 0) {
-                return res.status(404).json({ message: "Id Equipo no encontrado" });
-            }
-            return res.status(200).json({ message: "Equipo Actualizado con exito" });
-        }
-        else {
-            return res.status(500).json(err);
-        }
-    })
-})
-
-//-----------------------------------------------------------------------------------------------------------
-
-//------------ ELIMINAR---------------------------------------------------------------------------
-
-router.delete('/delete/:id_club/:id_contempla', auth.authenticateToken, (req, res, next) => {
-    const id_club = req.params.id_club;
-    const id_contempla = req.params.id_contempla;
-    var query = "delete from equipo where id_club=? and id_contempla=?";
-    connection.query(query, [id_club,id_contempla], (err, results) => {
-        if (!err) {
-            if (results.affectedRows == 0) {
-                return res.status(404).json({ message: "Id Equipo no encontrado" });
-            }
-            return res.status(200).json({ message: "Equipo eliminado con éxito" });
-        }
-        else {
-            return res.status(500).json(err);
-        }
-    })
-})
-
-//-------------------------------------------------------------------------------------------------
-
-
-//------------------------ OBTENER  SEGUN ID ---------------------------------------------------
-router.get('/getById/:id', auth.authenticateToken, (req, res, next) => {
-    const id = req.params.id;
-    var query = "select * from equipo where id=?";
-    connection.query(query, [id], (err, results) => {
-        if (!err) {
-            return res.status(200).json(results[0]);
-        }
-        else {
-            return res.status(500).json(err);
-        }
-    })
-})
+//------------ ELIMINAR EQUIPO (RF05.9.2.8.1.4) ------------
+router.delete('/delete/:id_club/:id_contempla', soloSuClub((req) => req.params.id_club), h(async (req, res) => {
+  const { id_club, id_contempla } = req.params;
+  const jugados = await db(
+    `SELECT COUNT(*) AS n FROM partido WHERE id_contempla=? AND (id_equipo1=? OR id_equipo2=?)`,
+    [id_contempla, id_club, id_club]
+  );
+  if (jugados[0].n > 0) {
+    return res.status(400).json({ message: 'El equipo ya tiene partidos en el fixture. Elimine primero el fixture.' });
+  }
+  const r = await connection.transaccion(async (tx) => {
+    await tx.query('DELETE FROM equipo_jugador WHERE id_club=? AND id_contempla=?', [id_club, id_contempla]);
+    return tx.query('DELETE FROM equipo WHERE id_club=? AND id_contempla=?', [id_club, id_contempla]);
+  });
+  if (r.affectedRows == 0) return res.status(404).json({ message: 'Id Equipo no encontrado' });
+  res.status(200).json({ message: 'Equipo eliminado con éxito' });
+}));
 
 module.exports = router;

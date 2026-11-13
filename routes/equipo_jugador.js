@@ -1,26 +1,41 @@
 const express = require('express');
 const connection = require('../connection');
+const { errorBD } = require('../libs/errores');
 const router = express.Router();
-var auth = require('../services/authentication');
-var checkRole = require('../services/checkRole');
+const { soloSuClub } = require('../services/club');
 
 
 //------------------------ AGREGAR JUGADORES A UN EQUIPO ---------------------------------------------------
-router.post('/add', auth.authenticateToken, (req, res, next) => {
-    let dato = req.body;
-    query = "insert into equipo_jugador (id_club,id_contempla,ci,estado) value(?,?,?,'false')";
-    connection.query(query, [dato.id_club, dato.id_contempla, dato.ci], (err, results) => {
-        if (!err) {
-            return res.status(200).json({ message: "Agregado con exito" });
+router.post('/add', soloSuClub((req) => req.body && req.body.id_club), async (req, res, next) => {
+    try {
+        const dato = req.body || {};
+        const db = connection.consulta;
+        const jug = await db("SELECT clubId, status FROM jugador WHERE ci=?", [dato.ci]);
+        if (!jug.length) return res.status(404).json({ message: "Jugador no encontrado" });
+        if (String(jug[0].clubId) !== String(dato.id_club)) {
+            return res.status(400).json({ message: "El jugador no pertenece a este club" });
         }
-        else {
-            return res.status(500).json(err);
+        if (jug[0].status === 'false') return res.status(400).json({ message: "El jugador está deshabilitado" });
+        // RF05.9.2.8.1.6: un jugador solo puede pertenecer a un equipo por categoría
+        const otro = await db("SELECT id_club FROM equipo_jugador WHERE ci=? AND id_contempla=? AND id_club<>?", [dato.ci, dato.id_contempla, dato.id_club]);
+        if (otro.length) return res.status(400).json({ message: "El jugador ya está inscrito en otro equipo de esta categoría" });
+        const cat = await db("SELECT num_max_jugadores FROM contempla WHERE id=?", [dato.id_contempla]);
+        const max = cat.length ? Number(cat[0].num_max_jugadores) : 0;
+        if (max > 0) {
+            const n = await db("SELECT COUNT(*) AS n FROM equipo_jugador WHERE id_club=? AND id_contempla=?", [dato.id_club, dato.id_contempla]);
+            if (n[0].n >= max) return res.status(400).json({ message: `El equipo ya tiene el máximo de ${max} jugadores` });
         }
-    })
+        await db("INSERT INTO equipo_jugador (id_club,id_contempla,ci,estado,nro_camiseta) VALUES (?,?,?,'false',?)",
+            [dato.id_club, dato.id_contempla, dato.ci, dato.nro_camiseta || null]);
+        return res.status(200).json({ message: "Agregado con exito" });
+    } catch (err) {
+        if (err.code === 'ER_DUP_ENTRY') return res.status(400).json({ message: "El jugador ya está en el equipo" });
+        next(err);
+    }
 })
 
 //-------------------------------- LISTAR JUGADORES DE UN EQUIPO ESPECIFICO-----------------------------------------------------
-router.get('/get/:id_club/:id_contempla', auth.authenticateToken, (req, res, next) => {
+router.get('/get/:id_club/:id_contempla', (req, res, next) => {
     const id_club = req.params.id_club;
     const id_contempla = req.params.id_contempla;
     
@@ -31,13 +46,13 @@ router.get('/get/:id_club/:id_contempla', auth.authenticateToken, (req, res, nex
                 return res.status(200).json(results);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         })
 })
 
 //-------------------------------- LISTAR JUGADORES DE UN EQUIPO ESPECIFICO habilitados en cancha-----------------------------------------------------
-router.get('/getJugadorEnCancha/:id_club/:id_contempla', auth.authenticateToken, (req, res, next) => {
+router.get('/getJugadorEnCancha/:id_club/:id_contempla', (req, res, next) => {
     const id_club = req.params.id_club;
     const id_contempla = req.params.id_contempla;
     
@@ -48,13 +63,13 @@ router.get('/getJugadorEnCancha/:id_club/:id_contempla', auth.authenticateToken,
                 return res.status(200).json(results);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         })
 })
 
 //-------------------------------- LISTAR JUGADORES DE UN EQUIPO ESPECIFICO en banca-----------------------------------------------------
-router.get('/getJugadorEnBanca/:id_club/:id_contempla', auth.authenticateToken, (req, res, next) => {
+router.get('/getJugadorEnBanca/:id_club/:id_contempla', (req, res, next) => {
     const id_club = req.params.id_club;
     const id_contempla = req.params.id_contempla;
     
@@ -65,13 +80,13 @@ router.get('/getJugadorEnBanca/:id_club/:id_contempla', auth.authenticateToken, 
                 return res.status(200).json(results);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         })
 })
 
 //-------------------------------- CONTAR JUGADORES DE UN EQUIPO ESPECIFICO habilitados en cancha-----------------------------------------------------
-router.get('/getTotalEnCancha/:id_club/:id_contempla', auth.authenticateToken, (req, res, next) => {
+router.get('/getTotalEnCancha/:id_club/:id_contempla', (req, res, next) => {
     const id_club = req.params.id_club;
     const id_contempla = req.params.id_contempla;
     
@@ -82,13 +97,13 @@ router.get('/getTotalEnCancha/:id_club/:id_contempla', auth.authenticateToken, (
                 return res.status(200).json(results);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         })
 })
 
 //------------------------ LISTAR JUGADORES --------------------------------------------------//todavia no se utilizo
-router.get('/get', auth.authenticateToken, (req, res, next) => {
+router.get('/get', (req, res, next) => {
     var query = "select ej.*, j.nombre, j.ap_paterno, j.ap_materno, TIMESTAMPDIFF(YEAR,j.fecha_nacimiento,CURDATE()) AS edad"
         + " from equipo_jugador ej, jugador j"
         + " where ej.ci=j.ci order by j.nombre";
@@ -97,13 +112,13 @@ router.get('/get', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json(results);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
 
 //------------------------ MODIFICAR ESTADO JUGADOR---------------------------------------------------
-router.patch('/updateEstado', auth.authenticateToken,(req, res, next) => {
+router.patch('/updateEstado', (req, res, next) => {
     let eqj = req.body; //eqj = equipo_jugador
     var query = "update equipo_jugador set estado=? where id_club=? and id_contempla=? and ci=?";
     connection.query(query, [eqj.estado,eqj.id_club,eqj.id_contempla,eqj.ci], (err, results) => {
@@ -114,14 +129,14 @@ router.patch('/updateEstado', auth.authenticateToken,(req, res, next) => {
             return res.status(200).json({ message: "Equipo actualizado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
 
 //------------------------ ELIMINAR JUGADOR-EQUIPO --------------------------------------------------------
 
-router.delete('/delete/:id_club/:id_contempla/:ci', auth.authenticateToken, (req, res, next) => {
+router.delete('/delete/:id_club/:id_contempla/:ci', soloSuClub((req) => req.params.id_club), (req, res, next) => {
     const id_club = req.params.id_club;
     const id_contempla = req.params.id_contempla;
     const ci = req.params.ci;
@@ -134,7 +149,7 @@ router.delete('/delete/:id_club/:id_contempla/:ci', auth.authenticateToken, (req
             return res.status(200).json({ message: "EquipoJugador eliminado con éxito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
