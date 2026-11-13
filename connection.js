@@ -1,66 +1,60 @@
+// Pool de conexiones MySQL. Exporta el pool con la API de callbacks (usada por las rutas existentes)
+// y además `query()` basada en promesas para el código nuevo.
 const mysql = require('mysql2');
+const config = require('./config');
 
-// Configuración de conexión para el pool
 const pool = mysql.createPool({
-    connectionLimit: 30,
-    host: '13.140.229.173',
-    port: 3306,
-    user: 'app_node',
-    password: 'Proverbios3:5',
-    database: 'bdd_campeonatos_v02',
-    ssl: { rejectUnauthorized: false }
+  host: config.db.host,
+  port: config.db.port,
+  user: config.db.user,
+  password: config.db.password,
+  database: config.db.database,
+  connectionLimit: config.db.connectionLimit,
+  waitForConnections: true,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000,
+  charset: 'utf8mb4',
+  ssl: config.db.ssl ? { rejectUnauthorized: false } : undefined,
 });
 
-// Obtener una conexión del pool y realizar operaciones
-pool.getConnection((err, connection) => {
-    if (err) {
-        console.error('Error al obtener la conexión del pool:', err);
-        return;
-    }
-
-    // Ejecutar operaciones con la conexión
-    connection.query('SELECT 1 + 1 AS result', (queryErr, results) => {
-        if (queryErr) {
-            console.error('Error en la consulta:', queryErr);
-        } else {
-            console.log('CONNECTED:', results[0].result);
-        }
-
-        // Devolver la conexión al pool
-        connection.release();
-    });
-});
-
-// Manejar eventos de error del pool
 pool.on('error', (err) => {
-    console.error('Error en el pool de MySQL:');
-    console.error(err);
+  console.error('[db] Error en el pool de MySQL:', err.code || err.message);
 });
 
-// Exportar el pool para su uso en otros módulos
+const promesa = pool.promise();
+
+/** Ejecuta una consulta y devuelve solo las filas/resultado. */
+async function query(sql, params = []) {
+  const [filas] = await promesa.query(sql, params);
+  return filas;
+}
+
+/** Ejecuta varias operaciones dentro de una transacción. */
+async function transaccion(fn) {
+  const conn = await promesa.getConnection();
+  try {
+    await conn.beginTransaction();
+    const resultado = await fn({
+      query: async (sql, params = []) => (await conn.query(sql, params))[0],
+    });
+    await conn.commit();
+    return resultado;
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+}
+
+async function verificarConexion() {
+  const filas = await query('SELECT 1 AS ok');
+  return filas[0].ok === 1;
+}
+
+// Importante: `pool.query` conserva la API de callbacks; el helper con promesas se llama `consulta`.
+pool.consulta = query;
+pool.transaccion = transaccion;
+pool.verificarConexion = verificarConexion;
+pool.cerrar = () => promesa.end();
 module.exports = pool;
-
-
-
-/*const mysql = require('mysql');
-require('dotenv').config();
-
-var connection = mysql.createConnection({
-    port: process.env.DB_PORT,
-    host: process.env.DB_HOST,
-    user: process.env.DB_USERNAME,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME
-});
-
-connection.connect((err)=>{
-    if(!err){
-        console.log("CONNECTED");
-    }
-    else{
-        console.log('ERROR: ');
-        console.log(err);
-    }
-})
-
-module.exports = connection; */

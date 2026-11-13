@@ -1,33 +1,31 @@
 const express = require('express');
 const connection = require('../connection');
+const { errorBD } = require('../libs/errores');
 const router = express.Router();
-var auth = require('../services/authentication');
-var checkRole = require('../services/checkRole');
 
 const multer = require('../libs/multer');
-const fs = require('fs');
+const { eliminarConArchivos, reemplazarArchivo } = require('../libs/archivos');
 
 
 //------------LISTAR JUGADOR------------------------------------------------------------------------
-router.get('/get', auth.authenticateToken, (req, res, next) => {
+router.get('/get', (req, res, next) => {
     var query = "select j.ci,j.nombre,j.ap_paterno,j.ap_materno,j.fecha_nacimiento,j.sexo,j.decendencia,j.fecha_habilitacion,j.foto,j.status,j.documento, TIMESTAMPDIFF(YEAR,fecha_nacimiento,CURDATE()) AS edad,c.id as clubId,DATE_FORMAT(j.fecha_nacimiento, '%d-%m-%Y') as fecha_nac,c.nombre as NombreClub from jugador as j INNER JOIN club as c where j.clubId = c.id";
     connection.query(query, (err, results) => {
         if (!err) {
             return res.status(200).json(results);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 });
 
 //------------REGISTRAR JUGADOR ------------------------------------------------------------------------
-router.post('/add', multer.single('foto'), auth.authenticateToken, checkRole.checkRole, (req, res, next) => {
+router.post('/add', multer.single('foto'), (req, res, next) => {
     const file = req.file;
     let jugador = req.body;
     let datos = {};
     let fecha = new Date(jugador.fecha_nacimiento); //convierte a tipo fecha
-    console.log(jugador);
     if (!file) {
         datos = {
             ci: jugador.ci,
@@ -63,10 +61,9 @@ router.post('/add', multer.single('foto'), auth.authenticateToken, checkRole.che
             return res.status(200).json({ message: "Jugador agregado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     });
-    console.log('Agregado Correctamente');
     /*
     let jugador = req.body;
     query = "insert into jugador (ci,nombre,ap_paterno,ap_materno,fecha_nacimiento,sexo,decendencia,clubId,fecha_habilitacion,foto,status) values(?,?,?,?,?,?,?,?,?,?,'true')";
@@ -75,14 +72,14 @@ router.post('/add', multer.single('foto'), auth.authenticateToken, checkRole.che
             return res.status(200).json({message:"Jugador agregado con exito"});
         }
         else{
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })*/
 })
 
 
 //------------------------ OBTENER JUGADORES SEGUN ID CLUB ---------------------------------------------------
-router.get('/getByClub/:id', auth.authenticateToken, (req, res, next) => {
+router.get('/getByClub/:id', (req, res, next) => {
     const id = req.params.id;
     var query = "select ci,nombre,ap_paterno,ap_materno, fecha_nacimiento"
         + " from jugador where clubId=? and status='true' order by nombre asc";
@@ -91,13 +88,13 @@ router.get('/getByClub/:id', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json(results);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
 
 //------------------------ OBTENER JUGADOR SEGUN SEXO, CLUB, Y RAGO DE EDADES --------------------------------
-router.get('/getJugadoresByEdad/:id_club/:sexo/:edad_min/:edad_max', auth.authenticateToken, (req, res, next) => {
+router.get('/getJugadoresByEdad/:id_club/:sexo/:edad_min/:edad_max', (req, res, next) => {
     const id_club = req.params.id_club;
     const sexo = req.params.sexo;
     const edad_min = req.params.edad_min;
@@ -110,7 +107,7 @@ router.get('/getJugadoresByEdad/:id_club/:sexo/:edad_min/:edad_max', auth.authen
                 return res.status(200).json(results);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         })
     } else {
@@ -121,7 +118,7 @@ router.get('/getJugadoresByEdad/:id_club/:sexo/:edad_min/:edad_max', auth.authen
                 return res.status(200).json(results);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         })
     }
@@ -130,13 +127,12 @@ router.get('/getJugadoresByEdad/:id_club/:sexo/:edad_min/:edad_max', auth.authen
 
 
 //------------------------ MODIFICAR JUGADOR---------------------------------------------------
-router.patch('/update', multer.single('foto'), auth.authenticateToken, checkRole.checkRole, (req, res, next) => {
+router.patch('/update', multer.single('foto'), (req, res, next) => {
     const file = req.file;
     let jugador = req.body;
     let datos = {};
     let fecha = new Date(jugador.fecha_nacimiento);
 
-    console.log(datos)
     if (!file) {
         datos = {
             ci: jugador.ci_mod,
@@ -167,17 +163,17 @@ router.patch('/update', multer.single('foto'), auth.authenticateToken, checkRole
         }
     }
 
-    console.log(datos)
     var query = "update jugador set ci=?,nombre=?,ap_paterno=?,ap_materno=?,fecha_nacimiento=?,sexo=?,decendencia=?,clubId=?,foto=? where ci=?";
     connection.query(query, [datos.ci, datos.nombre, datos.ap_paterno, datos.ap_materno, datos.fecha_nacimiento, datos.sexo, datos.decendencia, datos.clubId, datos.foto, jugador.ci], (err, results) => {
         if (!err) {
             if (results.affectedRows == 0) {
                 return res.status(404).json({ message: "Jugador CI no encontrado" });
             }
+            if (file) reemplazarArchivo(jugador.nombreimg, datos.foto);
             return res.status(200).json({ message: "Jugador Actualizado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
     /*
@@ -191,13 +187,13 @@ router.patch('/update', multer.single('foto'), auth.authenticateToken, checkRole
                return res.status(200).json({ message: "Jugador Actualizado2 con exito" });
            }
            else {
-               return res.status(500).json(err);
+               return errorBD(res, err);
            }
        })*/
 })
 
 //------------------------ MODIFICAR JUGADOR---------------------------------------------------
-router.patch('/subir_documento', multer.single('documento'), auth.authenticateToken, checkRole.checkRole, (req, res, next) => {
+router.patch('/subir_documento', multer.single('documento'), (req, res, next) => {
     const file = req.file;
     let jugador = req.body;
     let datos = {};
@@ -225,7 +221,7 @@ router.patch('/subir_documento', multer.single('documento'), auth.authenticateTo
             return res.status(200).json({ message: "Documentos Jugador subido  con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 
@@ -234,7 +230,7 @@ router.patch('/subir_documento', multer.single('documento'), auth.authenticateTo
 
 
 //------------------------ OBTENER JUGADOR SEGUN CI --------------------------------------------------- 
-router.get('/getById/:ci', auth.authenticateToken, (req, res, next) => {
+router.get('/getById/:ci', (req, res, next) => {
     const ci = req.params.ci;
     var query = "select ci,nombre,ap_paterno,ap_materno, fecha_nacimiento,foto from jugador where ci=?";
     connection.query(query, [ci], (err, results) => {
@@ -242,44 +238,27 @@ router.get('/getById/:ci', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json(results[0]);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
 
 //------------------------ ELIMINAR JUGADOR---------------------------------------------------
-router.delete('/delete/:ci', auth.authenticateToken, checkRole.checkRole, (req, res, next) => {
-    const ci = req.params.ci;
-    deleteFile(ci);
-    var query = "delete from jugador where ci=?";
-    connection.query(query, [ci], (err, results) => {
-        if (!err) {
-            if (results.affectedRows == 0) {
-                return res.status(404).json({ message: "Jugador CI no encontrado" });
-            }
-            return res.status(200).json({ message: "Jugador eliminado con exito" });
+router.delete('/delete/:ci', async (req, res, next) => {
+    try {
+        const r = await eliminarConArchivos('jugador', 'ci', req.params.ci, ['foto','documento']);
+        if (r.affectedRows == 0) {
+            return res.status(404).json({ message: "Jugador CI no encontrado" });
         }
-        else {
-            return res.status(500).json(err);
-        }
-    })
-})
-
-function deleteFile(ci) {
-    connection.query('SELECT * FROM  jugador WHERE ci = ?', [ci], (err, rows, fields) => {
-        [{ foto }] = rows;
-        console.log("Foto: " + foto);
-        if (foto === '') {
-            console.log('jugador eliminado');
-        } else {
-            fs.unlinkSync('./uploads/img/' + foto);
-        }
-    });
-}
+        return res.status(200).json({ message: "Jugador eliminado con exito" });
+    } catch (err) {
+        next(err);
+    }
+});
 
 
 //------------------------ ACTUALIZAR JUGADOR DESPUES DE ELIMINAR---------------------------------------------------
-router.patch('/updateStatus', auth.authenticateToken, checkRole.checkRole, (req, res, next) => {
+router.patch('/updateStatus', (req, res, next) => {
     let jugador = req.body;
     var query = "update jugador set status=? where ci=?";
     connection.query(query, [jugador.status, jugador.ci], (err, results) => {
@@ -290,7 +269,7 @@ router.patch('/updateStatus', auth.authenticateToken, checkRole.checkRole, (req,
             return res.status(200).json({ message: "Estado Jugador actualizado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })

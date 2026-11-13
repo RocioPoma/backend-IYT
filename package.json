@@ -1,29 +1,36 @@
 {
-  "name": "backend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon server.js"
+  "name": "backend-iyt",
+  "version": "2.0.0",
+  "description": "API del sistema de gestión de campeonatos de la Integración Yaretanense",
+  "main": "server.js",
+  "private": true,
+  "engines": {
+    "node": ">=20"
   },
-  "author": "",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "migrate": "node database/migrate.js",
+    "archivos:migrar": "node scripts/migrar-archivos.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js"
+  },
   "license": "ISC",
   "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.0.1",
-    "ejs": "^3.1.8",
-    "express": "^4.18.1",
-    "html-pdf": "^3.0.1",
-    "jsonwebtoken": "^8.5.1",
-    "morgan": "^1.10.0",
-    "multer": "^1.4.5-lts.1",
-    "mysql2": "^3.11.0",
-    "nodemailer": "^6.7.8",
-    "path": "^0.12.7",
-    "uuid": "^8.3.2"
+    "@aws-sdk/client-s3": "^3.1168.0",
+    "bcryptjs": "^3.0.3",
+    "compression": "^1.8.2",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.10",
+    "express": "^4.22.3",
+    "express-rate-limit": "^8.7.4",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.12.1",
+    "multer": "^2.5.0",
+    "mysql2": "^3.24.6",
+    "nodemailer": "^10.5.0"
   },
   "devDependencies": {
-    "nodemon": "^2.0.19"
+    "supertest": "^7.3.2"
   }
 }

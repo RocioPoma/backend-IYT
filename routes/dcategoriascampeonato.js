@@ -1,8 +1,7 @@
 const express = require("express");
 const connection = require('../connection');
+const { errorBD } = require('../libs/errores');
 const router = express.Router();
-var auth = require('../services/authentication');
-var checkRole = require('../services/checkRole');
 
 //CONTEMPLA CAMPEONATO, DISCIPLINA Y CATEGORIA
 //-------------------------------- MOSTRAR/LISTAR TODOS LOS CATEGORIAS -----------------------
@@ -15,7 +14,7 @@ router.get("/get_all",  (req, res) => {
                 return res.status(200).json(results);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         });
 });
@@ -30,7 +29,7 @@ router.get('/get/:id_campeonato',  (req, res, next) => {
                 return res.status(200).json(results);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         })
 })
@@ -45,7 +44,7 @@ router.get('/getById/:id', (req, res, next) => {
                 return res.status(200).json(results[0]);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         })
 })
@@ -74,7 +73,7 @@ router.post('/add', (req, res, next) => {
         }
         else {
             console.log(err);  // Ver el error en la consola del servidor
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     });
 });
@@ -108,7 +107,7 @@ router.patch('/update',  (req, res, next) => {
             return res.status(200).json({ message: "Actualizado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
@@ -119,7 +118,6 @@ router.patch('/update',  (req, res, next) => {
 
 router.delete('/delete/:id',  (req, res, next) => {
     const id = req.params.id;
-    console.log("eliminar id "+ id);
     var query = "delete from contempla where id=?";
     connection.query(query, [id], (err, results) => {
         if (!err) {
@@ -129,7 +127,7 @@ router.delete('/delete/:id',  (req, res, next) => {
             return res.status(200).json({ message: "Eliminado con éxito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
@@ -148,7 +146,7 @@ router.patch('/updateStatus',  (req, res, next) => {
             return res.status(200).json({ message: "Estado actualizado con éxito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })

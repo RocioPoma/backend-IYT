@@ -125,3 +125,7 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Archivos subidos: ahora viven en el servidor de archivos, no en el repositorio
+uploads/
+generated_pdf/

@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "backend-iyt",
+      "credentials": [
+        {
+          "accessKey": "CAMBIAR_POR_CLAVE_DE_ACCESO",
+          "secretKey": "CAMBIAR_POR_CLAVE_SECRETA_LARGA"
+        }
+      ],
+      "actions": ["Read", "Write", "List", "Tagging", "Admin"]
+    }
+  ]
+}
