@@ -32,7 +32,7 @@ function normalizarEmail(email) {
 }
 
 function datosToken(u) {
-  return { id: u.id, nombre: u.name, email: u.email, role: u.role, id_club: u.id_club };
+  return { id: u.id, nombre: u.name, email: u.email, role: u.role, id_club: u.id_club, gestion: u.gestion ?? null };
 }
 
 /** Compara la contraseña; si en la BD estaba en texto plano (usuarios antiguos) la cifra en ese momento. */
@@ -63,7 +63,7 @@ function validarUsuario(u, { claveObligatoria }) {
 //------------ LISTAR USUARIOS (RF02.1) — solo administrador ------------
 router.get('/get', authenticateToken, requireRole(ROLES.ADMIN), h(async (req, res) => {
   const filas = await db(`
-    SELECT u.id, u.name, u.email, u.contactNumber, u.status, u.role, u.fecha_registro,
+    SELECT u.id, u.name, u.email, u.contactNumber, u.status, u.role, u.fecha_registro, u.gestion,
            c.nombre AS NombreClub, c.id AS clubId
     FROM user u
     LEFT JOIN club c ON u.id_club = c.id
@@ -93,10 +93,12 @@ router.post('/signup', optionalAuth, h(async (req, res) => {
   const hash = await bcrypt.hash(String(u.password), RONDAS_BCRYPT);
   const clubId = u.clubId || u.id_club || null;
 
+  // La gestión asignada al delegado solo la define el administrador
+  const gestion = esAdmin && u.gestion ? Number(u.gestion) : null;
   await db(
-    `INSERT INTO user (name, contactNumber, email, password, status, role, id_club, fecha_registro)
-     VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE())`,
-    [String(u.name).trim(), u.contactNumber || null, email, hash, estado, rol, clubId]
+    `INSERT INTO user (name, contactNumber, email, password, status, role, id_club, gestion, fecha_registro)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE())`,
+    [String(u.name).trim(), u.contactNumber || null, email, hash, estado, rol, clubId, gestion]
   );
   res.status(200).json({
     message: esAdmin ? 'Registro Exitoso' : 'Registro exitoso. Espere la aprobación del administrador para ingresar.',
@@ -116,8 +118,8 @@ router.patch('/update', authenticateToken, requireRole(ROLES.ADMIN), h(async (re
   const duplicado = await db('SELECT id FROM user WHERE email=? AND id<>?', [email, u.id]);
   if (duplicado.length) return res.status(400).json({ message: 'Ya existe otro usuario con ese correo' });
 
-  const campos = ['name=?', 'contactNumber=?', 'email=?', 'role=?', 'id_club=?'];
-  const valores = [String(u.name).trim(), u.contactNumber || null, email, rol, u.clubId || u.id_club || null];
+  const campos = ['name=?', 'contactNumber=?', 'email=?', 'role=?', 'id_club=?', 'gestion=?'];
+  const valores = [String(u.name).trim(), u.contactNumber || null, email, rol, u.clubId || u.id_club || null, u.gestion ? Number(u.gestion) : null];
   if (u.password && !esHashBcrypt(u.password)) {
     campos.push('password=?');
     valores.push(await bcrypt.hash(String(u.password), RONDAS_BCRYPT));
@@ -131,7 +133,7 @@ router.patch('/update', authenticateToken, requireRole(ROLES.ADMIN), h(async (re
 //------------ LOGIN (RF01) ------------
 router.post('/login', limiteLogin, h(async (req, res) => {
   const { email, password } = req.body || {};
-  const filas = await db('SELECT id, name, email, password, role, id_club, status FROM user WHERE email=?', [normalizarEmail(email)]);
+  const filas = await db('SELECT id, name, email, password, role, id_club, gestion, status FROM user WHERE email=?', [normalizarEmail(email)]);
   const usuario = filas[0];
   const valido = await verificarClave(usuario, password);
   if (!valido) return res.status(401).json({ message: 'Nombre de usuario o contraseña incorrecta' });
@@ -139,13 +141,13 @@ router.post('/login', limiteLogin, h(async (req, res) => {
 
   const rol = usuario.role === 'user' ? ROLES.DELEGADO : usuario.role;
   const token = firmar(datosToken({ ...usuario, role: rol }));
-  res.status(200).json({ token, data: { nombre: usuario.name, role: rol, id_club: usuario.id_club } });
+  res.status(200).json({ token, data: { nombre: usuario.name, role: rol, id_club: usuario.id_club, gestion: usuario.gestion } });
 }));
 
 //------------ RENOVAR SESIÓN ------------
 // El frontend la llama mientras el usuario está activo; tras 30 min sin actividad el token expira (req. 3.3.2).
 router.post('/refresh', authenticateToken, h(async (req, res) => {
-  const filas = await db('SELECT id, name, email, role, id_club, status FROM user WHERE id=?', [req.usuario.id]);
+  const filas = await db('SELECT id, name, email, role, id_club, gestion, status FROM user WHERE id=?', [req.usuario.id]);
   const u = filas[0];
   if (!u || u.status !== 'true') return res.status(401).json({ message: 'Usuario deshabilitado' });
   const rol = u.role === 'user' ? ROLES.DELEGADO : u.role;

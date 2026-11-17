@@ -2,6 +2,7 @@ const express = require('express');
 const connection = require('../connection');
 const { errorBD } = require('../libs/errores');
 const router = express.Router();
+const { soloSuClub } = require('../services/club');
 
 const multer = require('../libs/multer');
 const { eliminarConArchivos, reemplazarArchivo } = require('../libs/archivos');
@@ -10,7 +11,14 @@ const { eliminarConArchivos, reemplazarArchivo } = require('../libs/archivos');
 //------------LISTAR JUGADOR------------------------------------------------------------------------
 router.get('/get', (req, res, next) => {
     var query = "select j.ci,j.nombre,j.ap_paterno,j.ap_materno,j.fecha_nacimiento,j.sexo,j.decendencia,j.fecha_habilitacion,j.foto,j.status,j.documento, TIMESTAMPDIFF(YEAR,fecha_nacimiento,CURDATE()) AS edad,c.id as clubId,DATE_FORMAT(j.fecha_nacimiento, '%d-%m-%Y') as fecha_nac,c.nombre as NombreClub from jugador as j INNER JOIN club as c where j.clubId = c.id";
-    connection.query(query, (err, results) => {
+    const params = [];
+    // El delegado solo ve la lista oficial de jugadores de su club
+    if (req.usuario && req.usuario.role === 'delegado') {
+        query += " and c.id = ?";
+        params.push(req.usuario.id_club || 0);
+    }
+    query += " order by c.nombre, j.ap_paterno, j.nombre";
+    connection.query(query, params, (err, results) => {
         if (!err) {
             return res.status(200).json(results);
         }
@@ -79,7 +87,7 @@ router.post('/add', multer.single('foto'), (req, res, next) => {
 
 
 //------------------------ OBTENER JUGADORES SEGUN ID CLUB ---------------------------------------------------
-router.get('/getByClub/:id', (req, res, next) => {
+router.get('/getByClub/:id', soloSuClub((req) => req.params.id), (req, res, next) => {
     const id = req.params.id;
     var query = "select ci,nombre,ap_paterno,ap_materno, fecha_nacimiento"
         + " from jugador where clubId=? and status='true' order by nombre asc";
@@ -94,7 +102,7 @@ router.get('/getByClub/:id', (req, res, next) => {
 })
 
 //------------------------ OBTENER JUGADOR SEGUN SEXO, CLUB, Y RAGO DE EDADES --------------------------------
-router.get('/getJugadoresByEdad/:id_club/:sexo/:edad_min/:edad_max', (req, res, next) => {
+router.get('/getJugadoresByEdad/:id_club/:sexo/:edad_min/:edad_max', soloSuClub((req) => req.params.id_club), (req, res, next) => {
     const id_club = req.params.id_club;
     const sexo = req.params.sexo;
     const edad_min = req.params.edad_min;
@@ -232,10 +240,14 @@ router.patch('/subir_documento', multer.single('documento'), (req, res, next) =>
 //------------------------ OBTENER JUGADOR SEGUN CI --------------------------------------------------- 
 router.get('/getById/:ci', (req, res, next) => {
     const ci = req.params.ci;
-    var query = "select ci,nombre,ap_paterno,ap_materno, fecha_nacimiento,foto from jugador where ci=?";
+    var query = "select ci,nombre,ap_paterno,ap_materno, fecha_nacimiento,foto,clubId from jugador where ci=?";
     connection.query(query, [ci], (err, results) => {
         if (!err) {
-            return res.status(200).json(results[0]);
+            const j = results[0];
+            if (j && req.usuario && req.usuario.role === 'delegado' && String(j.clubId) !== String(req.usuario.id_club)) {
+                return res.status(403).json({ message: "Solo puede ver los jugadores de su club" });
+            }
+            return res.status(200).json(j);
         }
         else {
             return errorBD(res, err);

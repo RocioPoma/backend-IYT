@@ -64,7 +64,10 @@ const modulos = [
   ['/noticia', 'noticia', { lectura: 'public', escritura: GRUPOS.NOTICIAS }],
   ['/reglamento', 'reglamento', { lectura: 'auth', escritura: GRUPOS.NORMAS }],
   ['/auspiciador', 'auspiciador', { lectura: 'public', escritura: GRUPOS.AUSPICIO }],
-  ['/pase', 'pase_jugador', { lectura: 'auth', escritura: GRUPOS.GESTION }],
+  // Delegado: solicita y responde pases; el comité aprueba (la ruta valida cada paso)
+  ['/pase', 'pase_jugador', { lectura: 'auth', escritura: GRUPOS.EQUIPOS }],
+  // Altas y actualizaciones de jugadores enviadas por el delegado; el comité las revisa
+  ['/solicitudjugador', 'jugador_solicitud', { lectura: GRUPOS.EQUIPOS, escritura: GRUPOS.EQUIPOS }],
   ['/equipo', 'equipo', { lectura: 'public', escritura: GRUPOS.EQUIPOS }],
   ['/equipojugador', 'equipo_jugador', {
     lectura: 'auth',

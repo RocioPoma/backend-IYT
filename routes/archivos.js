@@ -21,8 +21,11 @@ const TIPOS = {
 
 async function esPrivado(nombre) {
   const filas = await connection.consulta(
-    `SELECT 1 FROM jugador WHERE documento = ? UNION ALL SELECT 1 FROM pase_jugador WHERE documento = ? LIMIT 1`,
-    [nombre, nombre]
+    `SELECT 1 FROM jugador WHERE documento = ?
+     UNION ALL SELECT 1 FROM pase_jugador WHERE documento = ?
+     UNION ALL SELECT 1 FROM jugador_solicitud WHERE (documento = ? OR foto = ?) AND estado <> 'aprobado'
+     LIMIT 1`,
+    [nombre, nombre, nombre, nombre]
   );
   return filas.length > 0;
 }

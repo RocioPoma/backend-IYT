@@ -13,10 +13,11 @@ const { generarRoundRobin } = require('../routes/partido');
 const db = connection.consulta;
 let tokenAdmin;
 let tokenDelegado;
+const tokenDelegadoActual = () => tokenDelegado;
 const ids = {};
 
 async function limpiar() {
-  for (const t of ['medallero', 'hechos_partido', 'partido', 'equipo_jugador', 'equipo', 'pase_jugador', 'contempla',
+  for (const t of ['medallero', 'hechos_partido', 'partido', 'equipo_jugador', 'equipo', 'pase_jugador', 'jugador_solicitud', 'contempla',
     'noticia', 'jugador', 'user', 'campeonato', 'categoria', 'disciplina', 'cancha', 'arbitro', 'club']) {
     await db(`DELETE FROM \`${t}\``);
   }
@@ -39,7 +40,9 @@ before(async () => {
   )).insertId;
   // Usuario antiguo con contraseña sin cifrar: debe poder entrar y quedar cifrado
   await db("INSERT INTO user (name,email,password,status,role) VALUES ('Admin','admin@iyt.bo','clave123','true','admin')");
-  await db("INSERT INTO user (name,email,password,status,role,id_club) VALUES ('Delegado','dele@iyt.bo','clave123','true','user',?)", [ids.clubs[0]]);
+  await db("INSERT INTO user (name,email,password,status,role,id_club,gestion) VALUES ('Delegado','dele@iyt.bo','clave123','true','user',?,2026)", [ids.clubs[0]]);
+  await db("INSERT INTO user (name,email,password,status,role,id_club,gestion) VALUES ('Delegado2','dele2@iyt.bo','clave123','true','delegado',?,2026)", [ids.clubs[1]]);
+  await db("INSERT INTO user (name,email,password,status,role) VALUES ('Comite','comite@iyt.bo','clave123','true','comite_tecnico')");
   await db("INSERT INTO jugador (ci,nombre,ap_paterno,ap_materno,fecha_nacimiento,sexo,clubId,status) VALUES ('111','Juan','Perez','Lopez','2000-01-01','Masculino',?,'true')", [ids.clubs[0]]);
   await db("INSERT INTO jugador (ci,nombre,ap_paterno,ap_materno,fecha_nacimiento,sexo,clubId,status) VALUES ('222','Luis','Coro','Mamani','2001-01-01','Masculino',?,'true')", [ids.clubs[1]]);
 });
@@ -119,18 +122,27 @@ test('escrituras protegidas: sin sesión 401, con rol insuficiente 403', async (
   );
 });
 
-test('delegado inscribe su equipo (queda pendiente) pero no el de otro club', async () => {
+test('delegado: inscribe su equipo en su gestión, lo arma y solicita; el comité aprueba', async () => {
   const otro = await request(app).post('/equipo/add').set('Authorization', `Bearer ${tokenDelegado}`)
     .send({ id_club: ids.clubs[1], id_contempla: ids.contempla });
   assert.equal(otro.status, 403);
+  // otra gestión: no puede
+  await db("UPDATE user SET gestion=2025 WHERE email='dele@iyt.bo'");
+  const gest = await request(app).post('/equipo/add').set('Authorization', `Bearer ${tokenDelegado}`)
+    .send({ id_club: ids.clubs[0], id_contempla: ids.contempla });
+  assert.equal(gest.status, 403);
+  assert.match(gest.body.message, /gestión 2025/);
+  await db("UPDATE user SET gestion=2026 WHERE email='dele@iyt.bo'");
+
   const r = await request(app).post('/equipo/add').set('Authorization', `Bearer ${tokenDelegado}`)
     .send({ id_club: ids.clubs[0], id_contempla: ids.contempla, numero_sorteo: 1 });
   assert.equal(r.status, 200);
   const [e] = await db('SELECT estado FROM equipo WHERE id_club=?', [ids.clubs[0]]);
-  assert.equal(e.estado, 'pendiente');
-  const ap = await request(app).patch('/equipo/updateStatus').set('Authorization', `Bearer ${tokenAdmin}`)
-    .send({ id_club: ids.clubs[0], id_contempla: ids.contempla, estado: 'aprobado' });
-  assert.equal(ap.status, 200);
+  assert.equal(e.estado, 'borrador');
+  // sin jugadores no puede solicitar
+  const vacio = await request(app).post('/equipo/solicitar').set('Authorization', `Bearer ${tokenDelegado}`)
+    .send({ id_club: ids.clubs[0], id_contempla: ids.contempla });
+  assert.equal(vacio.status, 400);
 });
 
 test('jugadores del equipo: solo de su club y sin duplicar en la categoría', async () => {
@@ -140,6 +152,25 @@ test('jugadores del equipo: solo de su club y sin duplicar en la categoría', as
   const ajeno = await request(app).post('/equipojugador/add').set('Authorization', `Bearer ${tokenAdmin}`)
     .send({ id_club: ids.clubs[0], id_contempla: ids.contempla, ci: '222' });
   assert.equal(ajeno.status, 400);
+
+  await request(app).post('/equipo/solicitar').set('Authorization', `Bearer ${tokenDelegado}`)
+    .send({ id_club: ids.clubs[0], id_contempla: ids.contempla }).expect(200);
+  // solicitado: el delegado ya no puede cambiar jugadores
+  const bloqueado = await request(app).delete(`/equipojugador/delete/${ids.clubs[0]}/${ids.contempla}/111`).set('Authorization', `Bearer ${tokenDelegado}`);
+  assert.equal(bloqueado.status, 400);
+  // el delegado no puede aprobarse a sí mismo
+  await request(app).patch('/equipo/revisar').set('Authorization', `Bearer ${tokenDelegado}`)
+    .send({ id_club: ids.clubs[0], id_contempla: ids.contempla, estado: 'aprobado' }).expect(403);
+  const comite = (await request(app).post('/user/login').send({ email: 'comite@iyt.bo', password: 'clave123' })).body.token;
+  const pend = await request(app).get('/equipo/solicitudes').set('Authorization', `Bearer ${comite}`);
+  assert.equal(pend.body.length, 1);
+  // observar exige comentario
+  await request(app).patch('/equipo/revisar').set('Authorization', `Bearer ${comite}`)
+    .send({ id_club: ids.clubs[0], id_contempla: ids.contempla, estado: 'observado' }).expect(400);
+  await request(app).patch('/equipo/revisar').set('Authorization', `Bearer ${comite}`)
+    .send({ id_club: ids.clubs[0], id_contempla: ids.contempla, estado: 'aprobado' }).expect(200);
+  const [e] = await db('SELECT estado FROM equipo WHERE id_club=?', [ids.clubs[0]]);
+  assert.equal(e.estado, 'aprobado');
 });
 
 test('fixture, resultado, tabla de posiciones y medallero', async () => {
@@ -246,6 +277,7 @@ test('renovar sesión y cambiar contraseña', async () => {
   const r = await request(app).post('/user/refresh').set('Authorization', `Bearer ${tokenDelegado}`);
   assert.equal(r.status, 200);
   assert.ok(r.body.token);
+  tokenDelegado = r.body.token;
   await request(app).post('/user/changePassword').set('Authorization', `Bearer ${r.body.token}`)
     .send({ oldPassword: 'clave123', newPassword: 'nueva456' }).expect(200);
   await request(app).post('/user/login').send({ email: 'dele@iyt.bo', password: 'nueva456' }).expect(200);
@@ -268,4 +300,100 @@ test('los errores de base de datos no exponen detalles internos', async () => {
   const r = await request(app).post('/categoria/add').set('Authorization', `Bearer ${tokenAdmin}`).send({ nombre: 'x'.repeat(400) });
   assert.ok([400, 500].includes(r.status));
   assert.ok(!JSON.stringify(r.body).includes('sqlMessage'));
+});
+
+test('delegado: solicitud de alta de jugador → comité observa → corrige → comité acepta', async () => {
+  const foto = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+  const r = await request(app).post('/solicitudjugador/alta').set('Authorization', `Bearer ${tokenDelegadoActual()}`)
+    .field('ci', '7770001').field('nombre', 'Ana').field('ap_paterno', 'Quispe').field('ap_materno', '')
+    .field('fecha_nacimiento', '2002-03-04').field('sexo', 'Femenino').field('id_club', String(ids.clubs[2]))
+    .attach('foto', foto, { filename: 'ana.png', contentType: 'image/png' });
+  assert.equal(r.status, 200, r.text);
+  const [sol] = await db("SELECT * FROM jugador_solicitud WHERE ci='7770001'");
+  assert.equal(sol.estado, 'borrador');
+  assert.equal(sol.id_club, ids.clubs[0]); // el club lo pone el sistema, no el delegado
+  assert.equal((await db("SELECT ci FROM jugador WHERE ci='7770001'")).length, 0); // aún no está en la lista oficial
+  // otro delegado no la ve ni la toca
+  const t2 = (await request(app).post('/user/login').send({ email: 'dele2@iyt.bo', password: 'clave123' })).body.token;
+  assert.equal((await request(app).get('/solicitudjugador/get').set('Authorization', `Bearer ${t2}`)).body.length, 0);
+  await request(app).patch(`/solicitudjugador/solicitar/${sol.id}`).set('Authorization', `Bearer ${t2}`).expect(403);
+  // la foto pendiente no es pública
+  assert.equal((await request(app).get(`/uploads/img/${sol.foto}`)).status, 401);
+
+  await request(app).patch(`/solicitudjugador/solicitar/${sol.id}`).set('Authorization', `Bearer ${tokenDelegadoActual()}`).expect(200);
+  const comite = (await request(app).post('/user/login').send({ email: 'comite@iyt.bo', password: 'clave123' })).body.token;
+  await request(app).patch(`/solicitudjugador/revisar/${sol.id}`).set('Authorization', `Bearer ${tokenDelegadoActual()}`)
+    .send({ decision: 'aceptar' }).expect(403);
+  await request(app).patch(`/solicitudjugador/revisar/${sol.id}`).set('Authorization', `Bearer ${comite}`)
+    .send({ decision: 'observar', observacion: 'Falta la foto del carnet' }).expect(200);
+  const lista = (await request(app).get('/solicitudjugador/get').set('Authorization', `Bearer ${tokenDelegadoActual()}`)).body;
+  assert.equal(lista[0].estado, 'observado');
+  assert.equal(lista[0].observacion, 'Falta la foto del carnet');
+
+  const pdf = Buffer.from('%PDF-1.4\n%carnet\n');
+  await request(app).patch(`/solicitudjugador/update/${sol.id}`).set('Authorization', `Bearer ${tokenDelegadoActual()}`)
+    .field('ap_materno', 'Mamani').attach('documento', pdf, { filename: 'carnet.pdf', contentType: 'application/pdf' }).expect(200);
+  await request(app).patch(`/solicitudjugador/solicitar/${sol.id}`).set('Authorization', `Bearer ${tokenDelegadoActual()}`).expect(200);
+  await request(app).patch(`/solicitudjugador/revisar/${sol.id}`).set('Authorization', `Bearer ${comite}`)
+    .send({ decision: 'aceptar' }).expect(200);
+  const [j] = await db("SELECT * FROM jugador WHERE ci='7770001'");
+  assert.equal(j.clubId, ids.clubs[0]);
+  assert.equal(j.ap_materno, 'Mamani');
+  assert.equal(j.status, 'true');
+  assert.ok(j.documento);
+});
+
+test('delegado: actualización de jugador (no cambia CI ni club) y solo se aplica al aceptar', async () => {
+  const r = await request(app).post('/solicitudjugador/actualizacion').set('Authorization', `Bearer ${tokenDelegadoActual()}`)
+    .field('ci', '7770001').field('nombre', 'Ana María').field('id_club', String(ids.clubs[2])).field('enviar', 'true');
+  assert.equal(r.status, 200, r.text);
+  assert.equal((await db("SELECT nombre FROM jugador WHERE ci='7770001'"))[0].nombre, 'Ana'); // todavía no cambia
+  // jugador de otro club: no
+  const ajeno = await request(app).post('/solicitudjugador/actualizacion').set('Authorization', `Bearer ${tokenDelegadoActual()}`)
+    .field('ci', '222').field('nombre', 'X');
+  assert.equal(ajeno.status, 403);
+  // el delegado no puede eliminar jugadores
+  await request(app).delete('/jugador/delete/7770001').set('Authorization', `Bearer ${tokenDelegadoActual()}`).expect(403);
+  // y solo ve los de su club
+  const lista = (await request(app).get('/jugador/get').set('Authorization', `Bearer ${tokenDelegadoActual()}`)).body;
+  assert.ok(lista.length > 0 && lista.every((x) => x.clubId === ids.clubs[0]));
+
+  const comite = (await request(app).post('/user/login').send({ email: 'comite@iyt.bo', password: 'clave123' })).body.token;
+  await request(app).patch(`/solicitudjugador/revisar/${r.body.id}`).set('Authorization', `Bearer ${comite}`)
+    .send({ decision: 'aceptar' }).expect(200);
+  const [j] = await db("SELECT nombre, clubId FROM jugador WHERE ci='7770001'");
+  assert.equal(j.nombre, 'Ana María');
+  assert.equal(j.clubId, ids.clubs[0]);
+});
+
+test('pase en 3 pasos: destino solicita, origen acepta, comité aprueba', async () => {
+  const t2 = (await request(app).post('/user/login').send({ email: 'dele2@iyt.bo', password: 'clave123' })).body.token; // club 2 (destino)
+  const comite = (await request(app).post('/user/login').send({ email: 'comite@iyt.bo', password: 'clave123' })).body.token;
+  const busca = await request(app).get('/pase/buscarJugador/7770001').set('Authorization', `Bearer ${t2}`);
+  assert.equal(busca.status, 200);
+  assert.equal(busca.body.fecha_nacimiento, undefined);
+
+  await request(app).post('/pase/solicitar').set('Authorization', `Bearer ${t2}`).field('ci', '7770001').expect(200);
+  await request(app).post('/pase/solicitar').set('Authorization', `Bearer ${t2}`).field('ci', '7770001').expect(400); // ya en trámite
+  const [p] = await db("SELECT * FROM pase_jugador WHERE ci='7770001'");
+  assert.equal(p.estado, 'solicitado');
+  assert.equal(p.id_club_solicitado, ids.clubs[0]);
+  // el comité no puede aprobar antes que el club de origen
+  await request(app).patch(`/pase/revisar/${p.id_pase}`).set('Authorization', `Bearer ${comite}`).send({ decision: 'aprobar' }).expect(400);
+  // el club destino no puede responder por el origen
+  await request(app).patch(`/pase/responder/${p.id_pase}`).set('Authorization', `Bearer ${t2}`).field('decision', 'aceptar').expect(403);
+  await request(app).patch(`/pase/responder/${p.id_pase}`).set('Authorization', `Bearer ${tokenDelegadoActual()}`).field('decision', 'aceptar').expect(200);
+  assert.equal((await db("SELECT clubId FROM jugador WHERE ci='7770001'"))[0].clubId, ids.clubs[0]); // aún no cambia
+  // el delegado no puede dar la aprobación final
+  await request(app).patch(`/pase/revisar/${p.id_pase}`).set('Authorization', `Bearer ${tokenDelegadoActual()}`).send({ decision: 'aprobar' }).expect(403);
+  await request(app).patch(`/pase/revisar/${p.id_pase}`).set('Authorization', `Bearer ${comite}`).send({ decision: 'aprobar' }).expect(200);
+  assert.equal((await db("SELECT clubId FROM jugador WHERE ci='7770001'"))[0].clubId, ids.clubs[1]);
+  // cada delegado ve solo los pases de su club
+  const otros = (await request(app).get('/pase/get').set('Authorization', `Bearer ${t2}`)).body;
+  assert.ok(otros.every((x) => [x.id_club_solicitante, x.id_club_solicitado].includes(ids.clubs[1])));
+});
+
+test('campos de juego: el delegado los ve pero no los modifica', async () => {
+  assert.equal((await request(app).get('/cancha/get').set('Authorization', `Bearer ${tokenDelegadoActual()}`)).status, 200);
+  await request(app).post('/cancha/add').set('Authorization', `Bearer ${tokenDelegadoActual()}`).send({ nombre: 'X' }).expect(403);
 });

@@ -2,7 +2,7 @@ const express = require('express');
 const connection = require('../connection');
 const { errorBD } = require('../libs/errores');
 const router = express.Router();
-const { soloSuClub } = require('../services/club');
+const { soloSuClub, validarEquipoEditable } = require('../services/club');
 
 
 //------------------------ AGREGAR JUGADORES A UN EQUIPO ---------------------------------------------------
@@ -10,6 +10,8 @@ router.post('/add', soloSuClub((req) => req.body && req.body.id_club), async (re
     try {
         const dato = req.body || {};
         const db = connection.consulta;
+        const bloqueo = await validarEquipoEditable(req.usuario, dato.id_club, dato.id_contempla);
+        if (bloqueo) return res.status(400).json({ message: bloqueo });
         const jug = await db("SELECT clubId, status FROM jugador WHERE ci=?", [dato.ci]);
         if (!jug.length) return res.status(404).json({ message: "Jugador no encontrado" });
         if (String(jug[0].clubId) !== String(dato.id_club)) {
@@ -136,7 +138,11 @@ router.patch('/updateEstado', (req, res, next) => {
 
 //------------------------ ELIMINAR JUGADOR-EQUIPO --------------------------------------------------------
 
-router.delete('/delete/:id_club/:id_contempla/:ci', soloSuClub((req) => req.params.id_club), (req, res, next) => {
+router.delete('/delete/:id_club/:id_contempla/:ci', soloSuClub((req) => req.params.id_club), async (req, res, next) => {
+    try {
+        const bloqueo = await validarEquipoEditable(req.usuario, req.params.id_club, req.params.id_contempla);
+        if (bloqueo) return res.status(400).json({ message: bloqueo });
+    } catch (e) { return next(e); }
     const id_club = req.params.id_club;
     const id_contempla = req.params.id_contempla;
     const ci = req.params.ci;

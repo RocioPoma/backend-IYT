@@ -66,6 +66,21 @@ module.exports = {
       },
     ];
   },
+  /** Varios campos de archivo, ej. campos(['foto', 'documento']). Deja los nombres en req.files[campo][0].filename */
+  campos(nombres) {
+    return [
+      (req, res, next) =>
+        subida.fields(nombres.map((name) => ({ name, maxCount: 1 })))(req, res, (err) => (err ? manejarError(err, next) : next())),
+      async (req, res, next) => {
+        try {
+          for (const lista of Object.values(req.files || {})) for (const f of lista) await persistir(f);
+          next();
+        } catch (e) {
+          next(e);
+        }
+      },
+    ];
+  },
   array(campo, max = 5) {
     return [
       (req, res, next) => subida.array(campo, max)(req, res, (err) => (err ? manejarError(err, next) : next())),

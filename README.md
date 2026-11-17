@@ -18,7 +18,7 @@ npm run dev                 # http://localhost:4000
 
 - Con `STORAGE_DRIVER=local`, los archivos se guardan en la carpeta `uploads/` (solo para desarrollo).
 - `GET /health` indica si la API, la base de datos y el servidor de archivos están funcionando.
-- `npm test` ejecuta las pruebas automáticas. **Borran los datos de la base configurada**, así que solo deben correr contra una base de prueba.
+- `npm test` ejecuta las 21 pruebas automáticas. **Borran los datos de la base configurada**, así que solo deben correr contra una base de prueba.
 
 ## 2. Variables de entorno
 
@@ -36,36 +36,34 @@ Ver `.env.example`. Las importantes:
 
 **Nunca** escribas contraseñas en el código: van solo en `.env` (local) o en el panel de Render/servidor.
 
-## 3. Servidor de archivos en Contabo (SeaweedFS)
+## 3. Servidor de archivos gratuito en Contabo (SeaweedFS)
 
-> MinIO dejó de publicar versiones gratuitas en 2025; se usa **SeaweedFS** (Apache 2.0), compatible con S3.
-> El código funciona con cualquier servicio S3 (por ejemplo, *Contabo Object Storage*) cambiando solo las variables `S3_*`.
+> MinIO dejó de publicar versiones gratuitas en 2025; se usa **SeaweedFS** (gratuito, Apache 2.0), compatible con S3.
+> El código funciona con cualquier servicio S3 cambiando solo las variables `S3_*`.
 
-En el VPS (Ubuntu), con Docker instalado:
-
-```bash
-sudo mkdir -p /opt/iyt-archivos/data
-cd /opt/iyt-archivos
-# copiar aquí deploy/archivos/docker-compose.yml y s3.json.example
-cp s3.json.example s3.json
-nano s3.json                    # poner accessKey y secretKey propias (largas y aleatorias)
-docker compose up -d
-```
-
-Para generar claves: `openssl rand -hex 16` (accessKey) y `openssl rand -hex 32` (secretKey).
-
-**Publicarlo con HTTPS** (necesario mientras el backend esté en Render): crear un subdominio
-(ej. `archivos.tudominio.com`) apuntando a la IP del VPS y usar `deploy/archivos/nginx-archivos.conf` + `certbot`.
-Cuando el backend también esté en el VPS, usará `S3_ENDPOINT=http://127.0.0.1:8333` y no hará falta publicarlo.
-
-Luego, desde la carpeta del backend con el `.env` apuntando al servidor de archivos:
+Copie `deploy/archivos/instalar.sh` al VPS y ejecútelo. Instala Docker si falta, genera claves propias,
+crea el bucket, configura HTTPS (si tiene dominio) y un respaldo diario:
 
 ```bash
-node deploy/archivos/crear-bucket.js     # crea el bucket
-npm run archivos:migrar                  # sube los archivos existentes de uploads/img
+# Con dominio (recomendado): el subdominio debe apuntar a la IP del VPS
+sudo DOMINIO=archivos.tudominio.com CORREO=tu@correo.com bash instalar.sh
+
+# Sin dominio (temporal, HTTP por IP)
+sudo bash instalar.sh
 ```
 
-El script indica al final si algún archivo que aparece en la base de datos no se encontró.
+Al terminar muestra las variables `S3_*` para el `.env` o para Render. Luego, desde la carpeta del backend:
+
+```bash
+npm run archivos:migrar      # sube los archivos existentes de uploads/img y verifica que no falte ninguno
+```
+
+## 3.1 Base de datos
+
+- **Base actual con datos (Contabo):** respaldar y luego `npm run migrate`. Las migraciones agregan tablas y columnas
+  y convierten los estados antiguos; no borran datos.
+- **Instalación nueva y vacía:** ejecutar `database/instalacion/01_esquema.sql` y luego `02_datos_iniciales.sql`
+  (crea el usuario `admin@iyt.bo` con contraseña temporal `Cambiar123`).
 
 ## 4. Desplegar en Render (orden recomendado)
 
@@ -77,21 +75,29 @@ El script indica al final si algún archivo que aparece en la base de datos no s
 6. Integrar los cambios a `main` → Render despliega solo.
 7. Revisar `https://<tu-backend>.onrender.com/health`.
 
-## 5. Roles y permisos (según los casos de uso del documento)
+## 5. Roles y permisos (según los casos de uso del documento y los requerimientos del delegado)
 
 | Módulo | Ver | Crear / editar / eliminar |
 |---|---|---|
 | Campeonatos, categorías, disciplinas, clubs, series | Público | Administrador, Comité técnico |
-| Jugadores, árbitros, pases | Con sesión | Administrador, Comité técnico |
-| Equipos y jugadores del equipo | Público / con sesión | Administrador, Comité técnico, Delegado (solo su club; queda pendiente de aprobación) |
+| Jugadores (lista oficial) | Con sesión (el delegado solo ve su club) | Administrador, Comité técnico |
+| Solicitudes de jugadores | Delegado (su club), Comité técnico | El delegado registra y edita (todo menos CI y club); el **comité acepta u observa** |
+| Equipos y jugadores del equipo | Público / con sesión | Delegado (su club y su **gestión asignada**) → "Solicitar inscripción" → el **comité aprueba, observa o rechaza** |
+| Pase de jugador | Con sesión (el delegado ve los de su club) | El delegado de destino **solicita**, el de origen **acepta**, el **comité aprueba** |
+| Árbitros | Con sesión | Administrador, Comité técnico |
 | Fixture, partidos, hechos, medallero | Público | Administrador, Comité técnico, Responsable de categoría |
-| Noticias | Público | Administrador, Comité técnico, Presidente |
-| Auspiciadores | Público | Administrador, Comité técnico, Presidente |
+| Noticias, auspiciadores | Público | Administrador, Comité técnico, Presidente |
 | Normas (reglamento) | Con sesión | Administrador, Presidente |
-| Campos de juego | Público | Administrador, Comité técnico |
-| Usuarios | Administrador | Administrador |
+| Campos de juego | Público (y todos los roles) | Administrador, Comité técnico |
+| Usuarios | Administrador | Administrador (asigna el club y la gestión del delegado) |
 
 El rol antiguo `user` se convierte en `delegado` con la migración.
+
+### Estados de los flujos
+
+- **Equipo:** `borrador` → `solicitado` → `aprobado` | `observado` (vuelve a editarse) | `rechazado`. Solo los aprobados entran al fixture.
+- **Solicitud de jugador:** `borrador` → `pendiente` → `aprobado` | `observado` (con comentario; se corrige y se vuelve a enviar) | `anulado`.
+- **Pase:** `solicitado` → `aceptado_origen` → `aprobado` (cambia el club) | `rechazado` | `anulado`.
 
 ## 6. Endpoints nuevos
 
@@ -107,6 +113,16 @@ El rol antiguo `user` se convierte en `delegado` con la migración.
 | GET/POST/PATCH/DELETE | `/cancha/...` | Campos de juego |
 | GET | `/medallero/campeonato/:id` | Medallero del campeonato (resumen por club y detalle) |
 | POST | `/medallero/registrar` | Registra 1.º, 2.º y 3.º lugar de una categoría |
-| PATCH | `/equipo/updateStatus` | Aprueba o rechaza la inscripción de un equipo |
+| POST | `/equipo/solicitar` | El delegado solicita la inscripción de su equipo |
+| GET | `/equipo/solicitudes` | Inscripciones por revisar (comité) |
+| PATCH | `/equipo/revisar` | Aprueba, observa o rechaza la inscripción |
+| GET | `/solicitudjugador/get` | Solicitudes de alta/actualización de jugadores |
+| POST | `/solicitudjugador/alta` · `/solicitudjugador/actualizacion` | El delegado registra o edita un jugador (con foto y documento) |
+| PATCH | `/solicitudjugador/update/:id` · `/solicitar/:id` · `/anular/:id` | Editar, enviar o anular la solicitud |
+| PATCH | `/solicitudjugador/revisar/:id` | El comité acepta u observa |
+| GET | `/pase/buscarJugador/:ci` | Buscar un jugador para solicitar su pase |
+| POST | `/pase/solicitar` | Paso 1: el club de destino solicita el pase |
+| PATCH | `/pase/responder/:id` | Paso 2: el club de origen acepta o rechaza |
+| PATCH | `/pase/revisar/:id` | Paso 3: el comité aprueba o rechaza |
 | GET | `/hechospartido/getByPartido/:id` | Planilla del partido con todos los hechos |
 | GET | `/hechospartido/tipos` | Tipos de hecho (gol, falta, tarjeta...) |
