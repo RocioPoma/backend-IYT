@@ -18,7 +18,7 @@ npm run dev                 # http://localhost:4000
 
 - Con `STORAGE_DRIVER=local`, los archivos se guardan en la carpeta `uploads/` (solo para desarrollo).
 - `GET /health` indica si la API, la base de datos y el servidor de archivos están funcionando.
-- `npm test` ejecuta las 21 pruebas automáticas. **Borran los datos de la base configurada**, así que solo deben correr contra una base de prueba.
+- `npm test` ejecuta las 22 pruebas automáticas. **Borran los datos de la base configurada**, así que solo deben correr contra una base de prueba.
 
 ## 2. Variables de entorno
 
@@ -89,7 +89,7 @@ npm run archivos:migrar      # sube los archivos existentes de uploads/img y ver
 | Noticias, auspiciadores | Público | Administrador, Comité técnico, Presidente |
 | Normas (reglamento) | Con sesión | Administrador, Presidente |
 | Campos de juego | Público (y todos los roles) | Administrador, Comité técnico |
-| Usuarios | Administrador | Administrador (asigna el club y la gestión del delegado) |
+| Usuarios | Administrador (todos), Comité técnico (solo delegados) | Administrador: todos los roles y es el único que elimina. Comité técnico: crea, edita y activa **delegados** (club y gestión) |
 
 El rol antiguo `user` se convierte en `delegado` con la migración.
 

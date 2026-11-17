@@ -60,13 +60,27 @@ function validarUsuario(u, { claveObligatoria }) {
   return null;
 }
 
-//------------ LISTAR USUARIOS (RF02.1) — solo administrador ------------
-router.get('/get', authenticateToken, requireRole(ROLES.ADMIN), h(async (req, res) => {
+// El comité técnico gestiona solo usuarios con rol DELEGADO (crear, editar, activar/desactivar).
+// El administrador gestiona todos los roles y es el único que elimina usuarios.
+const GESTORES = [ROLES.ADMIN, ROLES.COMITE];
+const esComite = (req) => req.usuario && req.usuario.role === ROLES.COMITE;
+
+async function soloDelegadoParaComite(req, idUsuario) {
+  if (!esComite(req)) return null;
+  const f = await db('SELECT role FROM user WHERE id=?', [idUsuario]);
+  if (!f.length) return null;
+  const rol = f[0].role === 'user' ? ROLES.DELEGADO : f[0].role;
+  return rol === ROLES.DELEGADO ? null : 'El comité técnico solo puede gestionar usuarios delegados';
+}
+
+//------------ LISTAR USUARIOS (RF02.1) — administrador (todos) y comité técnico (delegados) ------------
+router.get('/get', authenticateToken, requireRole(GESTORES), h(async (req, res) => {
   const filas = await db(`
     SELECT u.id, u.name, u.email, u.contactNumber, u.status, u.role, u.fecha_registro, u.gestion,
            c.nombre AS NombreClub, c.id AS clubId
     FROM user u
     LEFT JOIN club c ON u.id_club = c.id
+    ${esComite(req) ? "WHERE u.role IN ('delegado', 'user')" : ''}
     ORDER BY u.name`);
   res.status(200).json(filas);
 }));
@@ -80,6 +94,7 @@ router.post('/signup', optionalAuth, h(async (req, res) => {
   if (error) return res.status(400).json({ message: error });
 
   const esAdmin = req.usuario && req.usuario.role === ROLES.ADMIN;
+  const porComite = esComite(req);
   const email = normalizarEmail(u.email);
   const existe = await db('SELECT id FROM user WHERE email=?', [email]);
   if (existe.length > 0) return res.status(400).json({ message: 'Alguien se encuentra registrado con el mismo correo' });
@@ -89,26 +104,36 @@ router.post('/signup', optionalAuth, h(async (req, res) => {
     rol = u.role === 'user' ? ROLES.DELEGADO : u.role;
     if (!rolValido(rol)) return res.status(400).json({ message: 'Rol inválido' });
   }
-  const estado = esAdmin ? 'true' : 'false';
+  if (porComite && u.role && u.role !== ROLES.DELEGADO && u.role !== 'user') {
+    return res.status(403).json({ message: 'El comité técnico solo puede crear usuarios delegados' });
+  }
+  const conPermiso = esAdmin || porComite;
+  if (porComite && !(u.clubId || u.id_club)) return res.status(400).json({ message: 'Seleccione el club del delegado' });
+  const estado = conPermiso ? 'true' : 'false';
   const hash = await bcrypt.hash(String(u.password), RONDAS_BCRYPT);
   const clubId = u.clubId || u.id_club || null;
 
-  // La gestión asignada al delegado solo la define el administrador
-  const gestion = esAdmin && u.gestion ? Number(u.gestion) : null;
+  // La gestión asignada al delegado la definen el administrador o el comité técnico
+  const gestion = conPermiso && u.gestion ? Number(u.gestion) : null;
   await db(
     `INSERT INTO user (name, contactNumber, email, password, status, role, id_club, gestion, fecha_registro)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE())`,
     [String(u.name).trim(), u.contactNumber || null, email, hash, estado, rol, clubId, gestion]
   );
   res.status(200).json({
-    message: esAdmin ? 'Registro Exitoso' : 'Registro exitoso. Espere la aprobación del administrador para ingresar.',
+    message: conPermiso ? 'Registro Exitoso' : 'Registro exitoso. Espere la aprobación del administrador para ingresar.',
   });
 }));
 
-//------------ MODIFICAR USUARIO (RF02.3) — solo administrador ------------
+//------------ MODIFICAR USUARIO (RF02.3) — administrador; comité técnico solo delegados ------------
 // Si la contraseña viene vacía, se conserva la actual.
-router.patch('/update', authenticateToken, requireRole(ROLES.ADMIN), h(async (req, res) => {
+router.patch('/update', authenticateToken, requireRole(GESTORES), h(async (req, res) => {
   const u = req.body || {};
+  const prohibido = await soloDelegadoParaComite(req, u.id);
+  if (prohibido) return res.status(403).json({ message: prohibido });
+  if (esComite(req) && u.role && u.role !== ROLES.DELEGADO && u.role !== 'user') {
+    return res.status(403).json({ message: 'El comité técnico no puede cambiar el rol de un delegado' });
+  }
   const error = validarUsuario(u, { claveObligatoria: false });
   if (error) return res.status(400).json({ message: error });
   const rol = u.role === 'user' ? ROLES.DELEGADO : u.role;
@@ -196,8 +221,10 @@ router.post('/resetPassword', limiteLogin, h(async (req, res) => {
 }));
 
 //------------ ACTIVAR / DESACTIVAR USUARIO (RF02.6) ------------
-router.patch('/updateStatus', authenticateToken, requireRole(ROLES.ADMIN), h(async (req, res) => {
+router.patch('/updateStatus', authenticateToken, requireRole(GESTORES), h(async (req, res) => {
   const { status, id } = req.body || {};
+  const prohibido = await soloDelegadoParaComite(req, id);
+  if (prohibido) return res.status(403).json({ message: prohibido });
   const estado = String(status) === 'true' ? 'true' : 'false';
   if (Number(id) === Number(req.usuario.id) && estado === 'false') {
     return res.status(400).json({ message: 'No puede desactivar su propio usuario' });

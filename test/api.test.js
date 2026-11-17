@@ -397,3 +397,28 @@ test('campos de juego: el delegado los ve pero no los modifica', async () => {
   assert.equal((await request(app).get('/cancha/get').set('Authorization', `Bearer ${tokenDelegadoActual()}`)).status, 200);
   await request(app).post('/cancha/add').set('Authorization', `Bearer ${tokenDelegadoActual()}`).send({ nombre: 'X' }).expect(403);
 });
+
+test('comité técnico: crea, edita y activa delegados, pero no otros roles ni elimina', async () => {
+  const comite = (await request(app).post('/user/login').send({ email: 'comite@iyt.bo', password: 'clave123' })).body.token;
+  const C = (r) => r.set('Authorization', `Bearer ${comite}`);
+  // crear delegado: queda activo, con club y gestión
+  await C(request(app).post('/user/signup')).send({ name: 'Nuevo Delegado', email: 'nd@iyt.bo', password: 'secreto1', role: 'delegado', clubId: ids.clubs[2], gestion: 2026 }).expect(200);
+  const [nd] = await db("SELECT id, role, status, id_club, gestion FROM user WHERE email='nd@iyt.bo'");
+  assert.deepEqual([nd.role, nd.status, nd.id_club, nd.gestion], ['delegado', 'true', ids.clubs[2], 2026]);
+  // no puede crear otros roles ni delegados sin club
+  await C(request(app).post('/user/signup')).send({ name: 'Otro Admin', email: 'oa@iyt.bo', password: 'secreto1', role: 'admin' }).expect(403);
+  await C(request(app).post('/user/signup')).send({ name: 'Sin Club', email: 'sc@iyt.bo', password: 'secreto1', role: 'delegado' }).expect(400);
+  // la lista solo muestra delegados
+  const lista = (await C(request(app).get('/user/get'))).body;
+  assert.ok(lista.length > 0 && lista.every((u) => ['delegado', 'user'].includes(u.role)));
+  // editar delegado (gestión) sí; convertirlo en admin no; editar al administrador no
+  await C(request(app).patch('/user/update')).send({ id: nd.id, name: 'Nuevo Delegado', email: 'nd@iyt.bo', role: 'delegado', clubId: ids.clubs[2], gestion: 2027 }).expect(200);
+  await C(request(app).patch('/user/update')).send({ id: nd.id, name: 'Nuevo Delegado', email: 'nd@iyt.bo', role: 'admin', clubId: ids.clubs[2] }).expect(403);
+  const [adm] = await db("SELECT id FROM user WHERE email='admin@iyt.bo'");
+  await C(request(app).patch('/user/update')).send({ id: adm.id, name: 'Hack', email: 'admin@iyt.bo', role: 'admin' }).expect(403);
+  // activar/desactivar delegados sí; al administrador no
+  await C(request(app).patch('/user/updateStatus')).send({ id: nd.id, status: 'false' }).expect(200);
+  await C(request(app).patch('/user/updateStatus')).send({ id: adm.id, status: 'false' }).expect(403);
+  // eliminar: solo el administrador
+  await C(request(app).delete(`/user/delete/${nd.id}`)).expect(403);
+});
