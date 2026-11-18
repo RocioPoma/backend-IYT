@@ -54,7 +54,7 @@ main()
     const ayuda = {
       ECONNREFUSED: 'No se pudo conectar al servidor MySQL (¿IP/puerto correctos? ¿el puerto 3306 está abierto?).',
       ETIMEDOUT: 'Tiempo de espera agotado al conectar con MySQL (¿firewall o servidor apagado?).',
-      ER_ACCESS_DENIED_ERROR: 'Usuario o contraseña de MySQL incorrectos (DB_USER / DB_PASSWORD).',
+      ER_ACCESS_DENIED_ERROR: 'Usuario o contraseña de MySQL incorrectos (DB_USER / DB_PASSWORD), o falta DB_SSL=true si el servidor exige conexión cifrada.',
       ER_DBACCESS_DENIED_ERROR: 'El usuario no tiene permiso sobre esa base de datos. Ejecute: GRANT ALL ON <base>.* TO \'<usuario>\'@\'%\';',
       ER_BAD_DB_ERROR: 'La base de datos indicada en DB_NAME no existe.',
     };
