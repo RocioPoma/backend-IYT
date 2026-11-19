@@ -8,10 +8,29 @@ const multer = require('../libs/multer');
 const { eliminarConArchivos, reemplazarArchivo } = require('../libs/archivos');
 //-----------------------------------------------------------------------------------------------------
 
+// Número del campeonato en romanos y en mayúsculas (I, II, ... XX, XXI ...)
+const ROMANO = /^(?=[MDCLXVI])M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/;
+
+/** Valida y normaliza los datos del anfitrión. Devuelve un mensaje de error o null. */
+function datosAnfitrion(b) {
+    const numero = String(b.numero_romano || '').trim().toUpperCase();
+    if (numero && !ROMANO.test(numero)) return { error: 'El número de campeonato debe estar en números romanos (por ejemplo: XX, XXI)' };
+    const club = b.id_club_anfitrion === '' || b.id_club_anfitrion === 'null' || b.id_club_anfitrion == null ? null : Number(b.id_club_anfitrion);
+    if (club !== null && !Number.isInteger(club)) return { error: 'Club anfitrión inválido' };
+    return {
+        numero_romano: numero || null,
+        comunidad_anfitriona: String(b.comunidad_anfitriona || '').trim() || null,
+        id_club_anfitrion: club,
+    };
+}
+
+const CAMPOS_ANFITRION = `c.numero_romano, c.comunidad_anfitriona, c.id_club_anfitrion,
+    ca.nombre AS club_anfitrion, ca.logo AS logo_club_anfitrion`;
+
 //------------LISTAR CAMPEONATO------------------------------------------------------------------------
 router.get('/get',(req,res,next)=>{
-    var query = "SELECT id,nombre_campeonato, fecha_inicio,fecha_fin, DATE_FORMAT(fecha_inicio, '%d-%m-%Y') as fecha_i,DATE_FORMAT(fecha_fin, '%d-%m-%Y') as fecha_f, convocatoria,gestion, status"
-    +" FROM campeonato order by gestion DESC";
+    var query = "SELECT c.id,c.nombre_campeonato, c.fecha_inicio,c.fecha_fin, DATE_FORMAT(c.fecha_inicio, '%d-%m-%Y') as fecha_i,DATE_FORMAT(c.fecha_fin, '%d-%m-%Y') as fecha_f, c.convocatoria,c.gestion, c.status, " + CAMPOS_ANFITRION
+    +" FROM campeonato c LEFT JOIN club ca ON ca.id = c.id_club_anfitrion order by c.gestion DESC";
     connection.query(query,(err,results)=>{
         if(!err){
             return res.status(200).json(results);
@@ -29,6 +48,8 @@ router.post('/add', multer.single('convocatoria'), (req, res, next) => {
     let datos = {};
     let fecha_i= new Date(campeonato.fecha_inicio); //convierte a tipo fecha
     let fecha_f= new Date(campeonato.fecha_fin); //convierte a tipo fecha
+    const anfitrion = datosAnfitrion(campeonato);
+    if (anfitrion.error) return res.status(400).json({ message: anfitrion.error });
 
     if (!file) {
         datos = {
@@ -49,6 +70,7 @@ router.post('/add', multer.single('convocatoria'), (req, res, next) => {
             status:'true'
         }
     }
+    Object.assign(datos, anfitrion);
     connection.query('insert into campeonato set ?', [datos], (err, results) => {
         if (!err) {
             return res.status(200).json({ message: "Campeonato agregado con exito"});
@@ -79,6 +101,8 @@ router.patch('/update',multer.single('convocatoria'), (req, res, next) => {
     let datos = {};
     let fecha_i= new Date(campeonato.fecha_inicio); //convierte a tipo fecha
     let fecha_f= new Date(campeonato.fecha_fin); //convierte a tipo fecha
+    const anfitrion = datosAnfitrion(campeonato);
+    if (anfitrion.error) return res.status(400).json({ message: anfitrion.error });
 
     if (!file) {
         datos = {
@@ -99,8 +123,9 @@ router.patch('/update',multer.single('convocatoria'), (req, res, next) => {
             gestion: campeonato.gestion
         }
     }     
-    var query = "update campeonato set nombre_campeonato=?,fecha_inicio=?,fecha_fin=?,convocatoria=?,gestion=? where id=?";
-    connection.query(query, [datos.nombre_campeonato, datos.fecha_inicio, datos.fecha_fin, datos.convocatoria, datos.gestion, datos.id], (err, results) => {
+    var query = "update campeonato set nombre_campeonato=?,fecha_inicio=?,fecha_fin=?,convocatoria=?,gestion=?,numero_romano=?,comunidad_anfitriona=?,id_club_anfitrion=? where id=?";
+    connection.query(query, [datos.nombre_campeonato, datos.fecha_inicio, datos.fecha_fin, datos.convocatoria, datos.gestion,
+        anfitrion.numero_romano, anfitrion.comunidad_anfitriona, anfitrion.id_club_anfitrion, datos.id], (err, results) => {
         if (!err) {
             if (results.affectedRows == 0) {
                 return res.status(404).json({ message: "Id Campeonato no encontrado" });
@@ -167,7 +192,7 @@ router.patch('/updateStatus',(req,res,next)=>{
 //------------------------ OBTENER CAMPEONATO SEGUN ID ---------------------------------------------------
 router.get('/getByIdc/:id', (req, res, next) => {
     const id = req.params.id;
-    var query = "select *, DATE_FORMAT(fecha_inicio, '%d-%m-%Y') as fecha_i,DATE_FORMAT(fecha_fin, '%d-%m-%Y') as fecha_f from campeonato where id=?";
+    var query = "select c.*, DATE_FORMAT(c.fecha_inicio, '%d-%m-%Y') as fecha_i,DATE_FORMAT(c.fecha_fin, '%d-%m-%Y') as fecha_f, ca.nombre AS club_anfitrion, ca.logo AS logo_club_anfitrion from campeonato c LEFT JOIN club ca ON ca.id = c.id_club_anfitrion where c.id=?";
     connection.query(query, [id], (err, results) => {
         if (!err) {
             return res.status(200).json(results[0]);
@@ -180,7 +205,7 @@ router.get('/getByIdc/:id', (req, res, next) => {
 //-------------------------------todavia no se utilizo ----------------------------------------------
 router.get('/getById/:id',(req,res,next)=>{
     const id = req.params.id;
-    var query = "select id,nombre_campeonato,fecha_inicio,fecha_fin,convocatoria,gestion,status from campeonato where id=?";
+    var query = "select c.id,c.nombre_campeonato,c.fecha_inicio,c.fecha_fin,c.convocatoria,c.gestion,c.status, " + CAMPOS_ANFITRION + " from campeonato c LEFT JOIN club ca ON ca.id = c.id_club_anfitrion where c.id=?";
     connection.query(query,[id],(err,results)=>{
         if(!err){
             return res.status(200).json(results[0]);

@@ -470,3 +470,23 @@ test('generar fixture con fecha de inicio y hora opcionales', async () => {
   const q = (await request(app).get(`/partido/get/${cat.id}/0`)).body;
   assert.ok(q.every((x) => x.fecha_f === null && x.hora_f === null));
 });
+
+test('campeonato con comunidad y club anfitrión y número romano (para los carnets)', async () => {
+  const A = (r) => r.set('Authorization', `Bearer ${tokenAdmin}`);
+  const base = { nombre_campeonato: 'Campeonato Romano', fecha_inicio: '2026-11-01', fecha_fin: '2026-12-20', gestion: 2026 };
+  await A(request(app).post('/campeonato/add')).field({ ...base, numero_romano: 'XXA', comunidad_anfitriona: 'Chite' }).expect(400);
+  await A(request(app).post('/campeonato/add')).field({ ...base, numero_romano: 'xxi', comunidad_anfitriona: 'Yareta', id_club_anfitrion: String(ids.clubs[0]) }).expect(200);
+  const [c] = await db("SELECT id, numero_romano, comunidad_anfitriona, id_club_anfitrion FROM campeonato WHERE nombre_campeonato='Campeonato Romano'");
+  assert.deepEqual([c.numero_romano, c.comunidad_anfitriona, c.id_club_anfitrion], ['XXI', 'Yareta', ids.clubs[0]]);
+  const lista = (await request(app).get('/campeonato/get')).body;
+  const l = lista.find((x) => x.id === c.id);
+  assert.equal(l.club_anfitrion, 'Aurora');
+  // actualizar: sin club anfitrión
+  await A(request(app).patch('/campeonato/update')).field({ ...base, id: String(c.id), nombre_conv: '', numero_romano: 'XXII', comunidad_anfitriona: 'Chite', id_club_anfitrion: '' }).expect(200);
+  const [c2] = await db('SELECT numero_romano, comunidad_anfitriona, id_club_anfitrion FROM campeonato WHERE id=?', [c.id]);
+  assert.deepEqual([c2.numero_romano, c2.comunidad_anfitriona, c2.id_club_anfitrion], ['XXII', 'Chite', null]);
+  // la categoría trae los datos del carnet
+  const [cat] = await db('SELECT id FROM contempla ORDER BY id LIMIT 1');
+  const d = (await request(app).get(`/dcategoriacampeonato/getById/${cat.id}`)).body;
+  assert.ok('numero_romano' in d && 'logo_club_anfitrion' in d);
+});
