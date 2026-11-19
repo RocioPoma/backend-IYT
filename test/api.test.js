@@ -422,3 +422,26 @@ test('comité técnico: crea, edita y activa delegados, pero no otros roles ni e
   // eliminar: solo el administrador
   await C(request(app).delete(`/user/delete/${nd.id}`)).expect(403);
 });
+
+test('club con logo y foto de jugador desde la lista', async () => {
+  const A = (r) => r.set('Authorization', `Bearer ${tokenAdmin}`);
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a4a50000000049454e44ae426082', 'hex');
+  // registrar club con logo (multipart)
+  await A(request(app).post('/club/add')).field('nombre', 'Club Logo').field('comunidad', 'Chite')
+    .attach('logo', png, { filename: 'escudo.png', contentType: 'image/png' }).expect(200);
+  const [club] = await db("SELECT id, logo FROM club WHERE nombre='Club Logo'");
+  assert.ok(club.logo && club.logo.endsWith('.png'));
+  assert.equal((await request(app).get(`/uploads/img/${club.logo}`)).status, 200);
+  // la lista de jugadores trae la comunidad del club
+  const lista = (await A(request(app).get('/jugador/get'))).body;
+  assert.ok(lista.length && lista.every((j) => 'ComunidadClub' in j));
+  // cambiar solo la foto
+  const r = await A(request(app).patch('/jugador/foto/111')).attach('foto', png, { filename: 'cara.png', contentType: 'image/png' }).expect(200);
+  const [j] = await db("SELECT foto FROM jugador WHERE ci='111'");
+  assert.equal(j.foto, r.body.foto);
+  // no acepta PDF como foto, ni jugador inexistente, ni delegado (lo hace por solicitud)
+  await A(request(app).patch('/jugador/foto/111')).attach('foto', Buffer.from('%PDF-1.4'), { filename: 'x.pdf', contentType: 'application/pdf' }).expect(400);
+  await A(request(app).patch('/jugador/foto/no-existe')).attach('foto', png, { filename: 'a.png', contentType: 'image/png' }).expect(404);
+  await request(app).patch('/jugador/foto/111').set('Authorization', `Bearer ${tokenDelegadoActual()}`)
+    .attach('foto', png, { filename: 'a.png', contentType: 'image/png' }).expect(403);
+});

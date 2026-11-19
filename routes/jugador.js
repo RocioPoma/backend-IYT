@@ -6,11 +6,12 @@ const { soloSuClub } = require('../services/club');
 
 const multer = require('../libs/multer');
 const { eliminarConArchivos, reemplazarArchivo } = require('../libs/archivos');
+const storage = require('../services/storage');
 
 
 //------------LISTAR JUGADOR------------------------------------------------------------------------
 router.get('/get', (req, res, next) => {
-    var query = "select j.ci,j.nombre,j.ap_paterno,j.ap_materno,j.fecha_nacimiento,j.sexo,j.decendencia,j.fecha_habilitacion,j.foto,j.status,j.documento, TIMESTAMPDIFF(YEAR,fecha_nacimiento,CURDATE()) AS edad,c.id as clubId,DATE_FORMAT(j.fecha_nacimiento, '%d-%m-%Y') as fecha_nac,c.nombre as NombreClub from jugador as j INNER JOIN club as c where j.clubId = c.id";
+    var query = "select j.ci,j.nombre,j.ap_paterno,j.ap_materno,j.fecha_nacimiento,j.sexo,j.decendencia,j.fecha_habilitacion,j.foto,j.status,j.documento, TIMESTAMPDIFF(YEAR,fecha_nacimiento,CURDATE()) AS edad,c.id as clubId,DATE_FORMAT(j.fecha_nacimiento, '%d-%m-%Y') as fecha_nac,c.nombre as NombreClub, c.comunidad as ComunidadClub from jugador as j INNER JOIN club as c where j.clubId = c.id";
     const params = [];
     // El delegado solo ve la lista oficial de jugadores de su club
     if (req.usuario && req.usuario.role === 'delegado') {
@@ -199,6 +200,25 @@ router.patch('/update', multer.single('foto'), (req, res, next) => {
            }
        })*/
 })
+
+//------------------------ CAMBIAR SOLO LA FOTO (clic en la foto de la lista) -----------------------
+router.patch('/foto/:ci', multer.single('foto'), async (req, res, next) => {
+    try {
+        if (!req.file) return res.status(400).json({ message: 'Seleccione una imagen' });
+        if (!/^image\//.test(req.file.mimetype || '')) {
+            await storage.eliminarSeguro(req.file.filename);
+            return res.status(400).json({ message: 'La foto debe ser una imagen (JPG, PNG o WEBP)' });
+        }
+        const actual = await connection.consulta('SELECT foto FROM jugador WHERE ci=?', [req.params.ci]);
+        if (!actual.length) {
+            await storage.eliminarSeguro(req.file.filename);
+            return res.status(404).json({ message: 'Jugador CI no encontrado' });
+        }
+        await connection.consulta('UPDATE jugador SET foto=? WHERE ci=?', [req.file.filename, req.params.ci]);
+        await reemplazarArchivo(actual[0].foto, req.file.filename);
+        return res.status(200).json({ message: 'Foto actualizada con éxito', foto: req.file.filename });
+    } catch (e) { next(e); }
+});
 
 //------------------------ MODIFICAR JUGADOR---------------------------------------------------
 router.patch('/subir_documento', multer.single('documento'), (req, res, next) => {
