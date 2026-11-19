@@ -445,3 +445,22 @@ test('club con logo y foto de jugador desde la lista', async () => {
   await request(app).patch('/jugador/foto/111').set('Authorization', `Bearer ${tokenDelegadoActual()}`)
     .attach('foto', png, { filename: 'a.png', contentType: 'image/png' }).expect(403);
 });
+
+test('generar fixture con fecha de inicio y hora opcionales', async () => {
+  const A = (r) => r.set('Authorization', `Bearer ${tokenAdmin}`);
+  const [cat] = await db('SELECT id FROM contempla ORDER BY id LIMIT 1');
+  await A(request(app).delete(`/partido/delete/${cat.id}`));
+  await A(request(app).post('/partido/add_fixture')).send({ id_contempla: cat.id, id_serie: 0, hora: '25:00' }).expect(400);
+  await A(request(app).post('/partido/add_fixture')).send({ id_contempla: cat.id, id_serie: 0, fecha_inicio: '2026-12-06', dias_entre_fechas: 7, hora: '15:30' }).expect(200);
+  const p = (await request(app).get(`/partido/get/${cat.id}/0`)).body;
+  assert.ok(p.length > 0);
+  assert.ok(p.every((x) => x.hora_f === '15:30' && x.logo1 !== undefined));
+  assert.equal((await request(app).get(`/partido/get/${cat.id}/todas`)).body.length, p.length);
+  assert.equal(p.find((x) => x.ronda === 1).fecha_f, '06-12-2026');
+  if (p.some((x) => x.ronda === 2)) assert.equal(p.find((x) => x.ronda === 2).fecha_f, '13-12-2026');
+  // sin fecha ni hora también funciona
+  await A(request(app).delete(`/partido/delete/${cat.id}`)).expect(200);
+  await A(request(app).post('/partido/add_fixture')).send({ id_contempla: cat.id, id_serie: 0 }).expect(200);
+  const q = (await request(app).get(`/partido/get/${cat.id}/0`)).body;
+  assert.ok(q.every((x) => x.fecha_f === null && x.hora_f === null));
+});

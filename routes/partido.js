@@ -57,20 +57,35 @@ function generarRoundRobin(equipos) {
 
 //------------ GENERAR FIXTURE (RF05.9.2.8.2.1) ------------
 router.post('/add_fixture', h(async (req, res) => {
-  const { id_contempla, id_serie } = req.body || {};
+  const { id_contempla, id_serie, fecha_inicio, hora } = req.body || {};
   if (!id_contempla) return res.status(400).json({ message: 'Falta la categoría (id_contempla)' });
+  // Opcionales: fecha de la primera jornada, días entre jornadas y hora de los partidos
+  if (fecha_inicio && !/^\d{4}-\d{2}-\d{2}$/.test(fecha_inicio)) return res.status(400).json({ message: 'Fecha de inicio inválida (AAAA-MM-DD)' });
+  if (hora && !/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) return res.status(400).json({ message: 'Hora inválida (HH:MM)' });
+  const dias = Math.min(Math.max(parseInt(req.body.dias_entre_fechas, 10) || 7, 1), 60);
+  const fechaRonda = (r) => {
+    if (!fecha_inicio) return null;
+    const d = new Date(fecha_inicio + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + r * dias);
+    return d.toISOString().slice(0, 10);
+  };
   const serie = id_serie === undefined || id_serie === null || id_serie === '' ? 0 : id_serie;
 
+  // "por serie": solo los equipos de esa serie; "todos contra todos": todos los equipos aprobados
+  const [cat] = await db('SELECT sistema_de_juego FROM contempla WHERE id=?', [id_contempla]);
+  const porSerie = cat && cat.sistema_de_juego === 'por serie';
   const equipos = await db(
     `SELECT e.id_club FROM equipo e
-     WHERE e.id_contempla=? AND COALESCE(e.id_serie,0)=? AND COALESCE(e.estado,'aprobado')='aprobado'
+     WHERE e.id_contempla=? ${porSerie ? 'AND COALESCE(e.id_serie,0)=?' : ''} AND COALESCE(e.estado,'aprobado')='aprobado'
      ORDER BY e.numero_sorteo, e.id_club`,
-    [id_contempla, serie]
+    porSerie ? [id_contempla, serie] : [id_contempla]
   );
   if (equipos.length < 2) {
     return res.status(400).json({ message: 'Se necesitan al menos 2 equipos aprobados para generar el fixture' });
   }
-  const existentes = await db('SELECT COUNT(*) AS n FROM partido WHERE id_contempla=? AND COALESCE(id_serie,0)=?', [id_contempla, serie]);
+  const existentes = porSerie
+    ? await db('SELECT COUNT(*) AS n FROM partido WHERE id_contempla=? AND COALESCE(id_serie,0)=?', [id_contempla, serie])
+    : await db('SELECT COUNT(*) AS n FROM partido WHERE id_contempla=?', [id_contempla]);
   if (existentes[0].n > 0) {
     return res.status(400).json({ message: 'Ya existe un fixture para esta categoría/serie. Elimínelo antes de generar otro.' });
   }
@@ -85,6 +100,8 @@ router.post('/add_fixture', h(async (req, res) => {
           id_contempla,
           id_serie: serie,
           ronda: r + 1,
+          fecha: fechaRonda(r),
+          hora: hora || null,
           estado: 'No realizado',
           total_equipo1: 0,
           total_equipo2: 0,
@@ -111,6 +128,13 @@ const SELECT_PARTIDO = `
 
 //------------ LISTAR PARTIDOS DE UNA CATEGORÍA (RF05.9.2.8.2.4) — público ------------
 router.get('/get/:id_contempla/:id_serie', h(async (req, res) => {
+  // "todas": partidos de todas las series (vista pública del fixture)
+  if (req.params.id_serie === 'todas') {
+    return res.status(200).json(await db(
+      `${SELECT_PARTIDO} WHERE p.id_contempla=? ORDER BY COALESCE(p.id_serie,0), COALESCE(p.ronda,0), p.fecha IS NULL, p.fecha, p.hora, p.id_partido`,
+      [req.params.id_contempla]
+    ));
+  }
   const filas = await db(
     `${SELECT_PARTIDO} WHERE p.id_contempla=? AND COALESCE(p.id_serie,0)=?
      ORDER BY COALESCE(p.ronda, 0), p.fecha IS NULL, p.fecha, p.hora, p.id_partido`,
