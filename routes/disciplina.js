@@ -1,8 +1,7 @@
 const express = require("express");
 const connection = require('../connection');
+const { errorBD } = require('../libs/errores');
 const router = express.Router();
-var auth = require('../services/authentication');
-var checkRole = require('../services/checkRole');
 
 
 //-------------------------------- MOSTRAR/LISTAR TODAS LAS DISCIPLINAS-----------------------
@@ -12,7 +11,7 @@ router.get("/get_all",  (req, res) => {
             return res.status(200).json(results);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     });
 });
@@ -24,14 +23,14 @@ router.get("/get",  (req, res) => {
             return res.status(200).json(results);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     });
 });
 
 
 //------------------CAMBIAR ESTADO DISCIPLINA---------------------------------------------------
-router.patch('/updateStatus', auth.authenticateToken, checkRole.checkRole, (req, res, next) => {
+router.patch('/updateStatus', (req, res, next) => {
     let disciplina = req.body;
     var query = "update disciplina set estado=? where id=?";
     connection.query(query, [disciplina.status, disciplina.id], (err, results) => {
@@ -42,13 +41,13 @@ router.patch('/updateStatus', auth.authenticateToken, checkRole.checkRole, (req,
             return res.status(200).json({ message: "Estado disciplina actualizado con éxito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
 
 //------------------------ OBTENER DISCIPLINA SEGUN ID ---------------------------------------------------
-router.get('/getByID/:id', auth.authenticateToken, (req, res, next) => {
+router.get('/getByID/:id', (req, res, next) => {
     const id = req.params.id;
     var query = "select * from disciplina where id=?";
     connection.query(query, [id], (err, results) => {
@@ -56,7 +55,7 @@ router.get('/getByID/:id', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json(results[0]);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })

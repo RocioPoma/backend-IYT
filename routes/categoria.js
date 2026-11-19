@@ -1,8 +1,7 @@
 const express = require("express");
 const connection = require('../connection');
+const { errorBD } = require('../libs/errores');
 const router = express.Router();
-var auth = require('../services/authentication');
-var checkRole = require('../services/checkRole');
 
 //-------------------------------- MOSTRAR/LISTAR -----------------------
 router.get("/get_all",  (req, res) => {
@@ -11,7 +10,7 @@ router.get("/get_all",  (req, res) => {
             return res.status(200).json(results);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     });
 });
@@ -23,13 +22,13 @@ router.get("/get",  (req, res) => {
             return res.status(200).json(results);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     });
 });
 
 //-------------------------------- AGREGAR --------------------------------
-router.post('/add', auth.authenticateToken, (req, res, next) => {
+router.post('/add', (req, res, next) => {
     let categoria = req.body;
     let datos = {};
 
@@ -43,14 +42,14 @@ router.post('/add', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json({ message: "Categoria agregado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     });
 });
 
 
 //------------------------ MODIFICAR ---------------------------------------------------
-router.patch('/update', auth.authenticateToken, (req, res, next) => {
+router.patch('/update', (req, res, next) => {
     let categoria = req.body;
     let datos = {};
 
@@ -68,7 +67,7 @@ router.patch('/update', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json({ message: "Categoria Actualizado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
@@ -77,7 +76,7 @@ router.patch('/update', auth.authenticateToken, (req, res, next) => {
 
 //------------ ELIMINAR---------------------------------------------------------------------------
 
-router.delete('/delete/:id', auth.authenticateToken, (req, res, next) => {
+router.delete('/delete/:id', (req, res, next) => {
     const id = req.params.id;
     var query = "delete from categoria where id=?";
     connection.query(query, [id], (err, results) => {
@@ -88,7 +87,7 @@ router.delete('/delete/:id', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json({ message: "Categoria eliminado con éxito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
@@ -96,7 +95,7 @@ router.delete('/delete/:id', auth.authenticateToken, (req, res, next) => {
 //-------------------------------------------------------------------------------------------------
 
 //------------------ CAMBIAR ESTADO ----------------------------------------------------------------
-router.patch('/updateStatus', auth.authenticateToken, checkRole.checkRole, (req, res, next) => {
+router.patch('/updateStatus', (req, res, next) => {
     let categoria = req.body;
     var query = "update categoria set estado=? where id=?";
     connection.query(query, [categoria.status, categoria.id], (err, results) => {
@@ -107,13 +106,13 @@ router.patch('/updateStatus', auth.authenticateToken, checkRole.checkRole, (req,
             return res.status(200).json({ message: "Estado categoria actualizado con éxito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
 
 //------------------------ OBTENER  SEGUN ID ---------------------------------------------------
-router.get('/getById/:id', auth.authenticateToken, (req, res, next) => {
+router.get('/getById/:id', (req, res, next) => {
     const id = req.params.id;
     var query = "select * from categoria where id=?";
     connection.query(query, [id], (err, results) => {
@@ -121,7 +120,7 @@ router.get('/getById/:id', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json(results[0]);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })

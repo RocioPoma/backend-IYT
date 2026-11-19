@@ -1,47 +1,50 @@
 const express = require('express');
 const connection = require('../connection');
+const { errorBD } = require('../libs/errores');
 const router = express.Router();
-var auth = require('../services/authentication');
-var checkRole = require('../services/checkRole');
 
 
 //------------------------ AGREGAR HECHO PARTIDO ---------------------------------------------------
-router.post('/add_hecho', auth.authenticateToken, checkRole.checkRole, (req, res, next) => {
+router.post('/add_hecho', (req, res, next) => {
     let dato = req.body;
-    query = "insert into hechos_partido (id_partido,ci,id_club,id_contempla,id_hecho,id_time,descripcion_hecho) value(?,?,?,?,?,?,?)";
+    const query = "insert into hechos_partido (id_partido,ci,id_club,id_contempla,id_hecho,id_time,descripcion_hecho) value(?,?,?,?,?,?,?)";
     connection.query(query, [dato.id_partido, dato.ci, dato.id_club, dato.id_contempla, dato.id_hecho, dato.id_time, dato.descripcion_hecho], (err, results) => {
         if (!err) {
             return res.status(200).json({ message: "Agregado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
 
 //-------------------------------- LISTAR HECHO PARTIDO (de un jugador, club, categoria especifica)-----------------------------------------------------
-router.get('/getHechosPartido/:id_club/:id_contempla/:id_hecho/:id_partido', auth.authenticateToken, (req, res, next) => {
+router.get('/getHechosPartido/:id_club/:id_contempla/:id_hecho/:id_partido', (req, res, next) => {
     const id_club = req.params.id_club;
     const id_contempla = req.params.id_contempla;
     const id_hecho= req.params.id_hecho;
     const id_partido= req.params.id_partido;
 
-    connection.query("select hp.*, j.nombre,j.ap_paterno,j.ap_materno, ej.nro_camiseta, count(hp.ci) as hecho_jugador"
-        + " from hechos_partido hp, jugador j, hechos_disciplinas hd, equipo_jugador ej, partido p"
-        + " where hp.ci=ej.ci and hp.id_club=ej.id_club and hp.id_contempla=ej.id_contempla and hp.id_hecho=hd.id_hecho"
-        + " and hp.id_partido=p.id_partido and j.ci=ej.ci and hp.id_club=? and hp.id_contempla=?  and hp.id_hecho=? and hp.id_partido=?"
-        + " GROUP BY hp.ci ;", [id_club, id_contempla,id_hecho, id_partido], (err, results) => {
+    connection.query(`SELECT hp.ci, hp.id_club, hp.id_contempla, hp.id_hecho, hp.id_partido,
+               ANY_VALUE(hp.id_hechos_partido) AS id_hechos_partido, ANY_VALUE(hp.id_time) AS id_time,
+               ANY_VALUE(hp.descripcion_hecho) AS descripcion_hecho,
+               j.nombre, j.ap_paterno, j.ap_materno, ej.nro_camiseta, COUNT(*) AS hecho_jugador
+        FROM hechos_partido hp
+        JOIN equipo_jugador ej ON hp.ci = ej.ci AND hp.id_club = ej.id_club AND hp.id_contempla = ej.id_contempla
+        JOIN jugador j ON j.ci = ej.ci
+        WHERE hp.id_club = ? AND hp.id_contempla = ? AND hp.id_hecho = ? AND hp.id_partido = ?
+        GROUP BY hp.ci, hp.id_club, hp.id_contempla, hp.id_hecho, hp.id_partido, j.nombre, j.ap_paterno, j.ap_materno, ej.nro_camiseta`, [id_club, id_contempla,id_hecho, id_partido], (err, results) => {
             if (!err) {
                 return res.status(200).json(results);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         })
 })
 
 //-------------------------------- LISTAR TOTAL GOLES PARTIDO -----------------------------------------------------
-router.get('/getTotalGolesPartido/:id_club/:id_contempla/:id_partido', auth.authenticateToken, (req, res, next) => {
+router.get('/getTotalGolesPartido/:id_club/:id_contempla/:id_partido', (req, res, next) => {
     const id_club = req.params.id_club;
     const id_contempla = req.params.id_contempla;
     const id_partido= req.params.id_partido;
@@ -52,7 +55,7 @@ router.get('/getTotalGolesPartido/:id_club/:id_contempla/:id_partido', auth.auth
                 return res.status(200).json(results);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         })
 })
@@ -64,7 +67,7 @@ router.get('/getTotalGolesPartido/:id_club/:id_contempla/:id_partido', auth.auth
 
 
 //-------------------------------- LISTAR JUGADORES DE UN EQUIPO ESPECIFICO en banca-----------------------------------------------------
-router.get('/getJugadorEnBanca/:id_club/:id_contempla', auth.authenticateToken, (req, res, next) => {
+router.get('/getJugadorEnBanca/:id_club/:id_contempla', (req, res, next) => {
     const id_club = req.params.id_club;
     const id_contempla = req.params.id_contempla;
 
@@ -75,13 +78,13 @@ router.get('/getJugadorEnBanca/:id_club/:id_contempla', auth.authenticateToken, 
                 return res.status(200).json(results);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         })
 })
 
 //------------------------ LISTAR JUGADORES --------------------------------------------------//todavia no se utilizo
-router.get('/get', auth.authenticateToken, (req, res, next) => {
+router.get('/get', (req, res, next) => {
     var query = "select ej.*, j.nombre, j.ap_paterno, j.ap_materno, TIMESTAMPDIFF(YEAR,j.fecha_nacimiento,CURDATE()) AS edad"
         + " from equipo_jugador ej, jugador j"
         + " where ej.ci=j.ci order by j.nombre";
@@ -90,46 +93,44 @@ router.get('/get', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json(results);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
 
-//------------------------ MODIFICAR CLUBS---------------------------------------------------
-router.patch('/update', auth.authenticateToken, checkRole.checkRole, (req, res, next) => {
-    let club = req.body;
-    var query = "update club set nombre=?,comunidad=? where id=?";
-    connection.query(query, [club.nombre, club.comunidad, club.id], (err, results) => {
-        if (!err) {
-            if (results.affectedRows == 0) {
-                return res.status(404).json({ message: "Club Id no encontrado" });
-            }
-            return res.status(200).json({ message: "Club actualizado con exito" });
-        }
-        else {
-            return res.status(500).json(err);
-        }
-    })
-})
+//------------------------ TIPOS DE HECHO (gol, aro, falta, tarjeta amarilla, tarjeta roja...) ----------------
+router.get('/tipos', (req, res, next) => {
+    connection.consulta('SELECT * FROM hechos_disciplinas ORDER BY id_hecho')
+        .then((filas) => res.status(200).json(filas))
+        .catch(next);
+});
 
-//------------------------ ELIMINAR JUGADOR-EQUIPO --------------------------------------------------------
+//------------------------ PLANILLA: TODOS LOS HECHOS DE UN PARTIDO (RF05.9.2.8.2.4.4) ----------------
+router.get('/getByPartido/:id_partido', (req, res, next) => {
+    connection.consulta(
+        `SELECT hp.id_hechos_partido, hp.id_partido, hp.id_club, hp.id_hecho, hp.id_time, hp.descripcion_hecho,
+                hd.nombre AS hecho, t.nombre AS tiempo, c.nombre AS club,
+                j.nombre, j.ap_paterno, j.ap_materno, ej.nro_camiseta
+         FROM hechos_partido hp
+         LEFT JOIN hechos_disciplinas hd ON hd.id_hecho = hp.id_hecho
+         LEFT JOIN all_times t ON t.id_time = hp.id_time
+         LEFT JOIN club c ON c.id = hp.id_club
+         LEFT JOIN jugador j ON j.ci = hp.ci
+         LEFT JOIN equipo_jugador ej ON ej.ci = hp.ci AND ej.id_club = hp.id_club AND ej.id_contempla = hp.id_contempla
+         WHERE hp.id_partido = ?
+         ORDER BY hp.id_time, hp.id_hechos_partido`, [req.params.id_partido])
+        .then((filas) => res.status(200).json(filas))
+        .catch(next);
+});
 
-router.delete('/delete/:id_club/:id_contempla/:ci', auth.authenticateToken, (req, res, next) => {
-    const id_club = req.params.id_club;
-    const id_contempla = req.params.id_contempla;
-    const ci = req.params.ci;
-    var query = "delete from equipo_jugador where id_club=? and id_contempla=? and ci=?";
-    connection.query(query, [id_club, id_contempla, ci], (err, results) => {
-        if (!err) {
-            if (results.affectedRows == 0) {
-                return res.status(404).json({ message: "Datos no encontrado" });
-            }
-            return res.status(200).json({ message: "EquipoJugador eliminado con éxito" });
-        }
-        else {
-            return res.status(500).json(err);
-        }
-    })
-})
+//------------------------ ANULAR UN HECHO REGISTRADO POR ERROR ----------------
+router.delete('/delete/:id_hechos_partido', (req, res, next) => {
+    connection.consulta('DELETE FROM hechos_partido WHERE id_hechos_partido=?', [req.params.id_hechos_partido])
+        .then((r) => {
+            if (r.affectedRows == 0) return res.status(404).json({ message: "Hecho no encontrado" });
+            return res.status(200).json({ message: "Hecho eliminado con éxito" });
+        })
+        .catch(next);
+});
 
 module.exports = router;

@@ -1,8 +1,9 @@
 const express = require("express");
 const connection = require('../connection');
+const { errorBD } = require('../libs/errores');
 const router = express.Router();
 const multer = require('../libs/multer');
-const fs = require('fs');
+const { eliminarConArchivos, reemplazarArchivo } = require('../libs/archivos');
 
 //-------------------------------- AGREGAR NOTICIA --------------------------------
 router.post('/add', multer.single('imagen'), (req, res, next) => {
@@ -32,41 +33,40 @@ router.post('/add', multer.single('imagen'), (req, res, next) => {
             return res.status(200).json({ message: "Noticia agregado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     });
-    console.log('Agregado Correctamente');
     /* query = "insert into noticia (titulo,imagen,descripcion,documento) value(?,?,?,?)";
      connection.query(query,[noticia.titulo,req.file.path,noticia.descripcion,noticia.documento],(err,results)=>{
          if(!err){
              return res.status(200).json({message:"Noticia agregado con exito"});
          }
          else{
-             return res.status(500).json(err);
+             return errorBD(res, err);
          }
      })*/
 });
 
 //-------------------------------- MOSTRAR/LISTAR NOTICIA --------------------------------
 router.get("/get", (req, res) => {
-    connection.query('SELECT * FROM  noticia', (err, results) => {
+    connection.query("SELECT n.*, DATE_FORMAT(n.fecha_registro, '%d-%m-%Y %H:%i') AS fecha FROM noticia n ORDER BY n.fecha_registro DESC, n.id DESC", (err, results) => {
         if (!err) {
             return res.status(200).json(results);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     });
 });
 
 router.get('/getById/:id', (req, res, next) => {
     const { id } = req.params;
-    connection.query('SELECT * FROM  noticia WHERE id = ?', [id], (err, results) => {
+    connection.query("SELECT n.*, DATE_FORMAT(n.fecha_registro, '%d-%m-%Y %H:%i') AS fecha FROM noticia n WHERE n.id = ?", [id], (err, results) => {
         if (!err) {
             return res.status(200).json(results[0]);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
@@ -76,7 +76,6 @@ router.get('/getById/:id', (req, res, next) => {
 /*
 router.patch('/update', (req, res, next) => {
     let noticia = req.body;
-    console.log(noticia);
     var query = "update noticia set titulo=?,descripcion=? where id=?";
     connection.query(query, [noticia.titulo, noticia.descripcion, noticia.id], (err, results) => {
         if (!err) {
@@ -86,7 +85,7 @@ router.patch('/update', (req, res, next) => {
             return res.status(200).json({ message: "Noticia actualizado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })*/
@@ -118,56 +117,40 @@ router.patch('/update',multer.single('imagen'), (req, res, next) => {
             if (results.affectedRows == 0) {
                 return res.status(404).json({ message: "Noticia Id no encontrado" });
             }
+            if (file) reemplazarArchivo(noticia.nombreimg, datos.imagen);
             return res.status(200).json({ message: "Noticia actualizado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
 
 
 //-------------------------------- ELIMINAR NOTICIA -----------------------------------------------------
-router.delete('/delete/:id', (req, res) => {
-    const { id } = req.params;
-    deleteFile(id);
-    connection.query('DELETE FROM noticia WHERE id = ?', [id], (err, results) => {
-        if (!err) {
-            if (results.affectedRows == 0) {
-                return res.status(404).json({ message: "Noticia ID no encontrado" });
-            }
-            return res.status(200).json({ message: "Noticia eliminado con exito" });
+router.delete('/delete/:id', async (req, res, next) => {
+    try {
+        const r = await eliminarConArchivos('noticia', 'id', req.params.id, ['imagen']);
+        if (r.affectedRows == 0) {
+            return res.status(404).json({ message: "Noticia ID no encontrado" });
         }
-        else {
-            return res.status(500).json(err);
-        }
-    });
+        return res.status(200).json({ message: "Noticia eliminado con exito" });
+    } catch (err) {
+        next(err);
+    }
 });
-
-//---funcion para eliminar archivo
-function deleteFile(id) {
-    connection.query('SELECT * FROM  noticia WHERE id = ?', [id], (err, rows, fields) => {
-        [{ imagen }] = rows;
-        if(imagen ===''){
-            console.log('noticia eliminado');
-        }else{
-            fs.unlinkSync('./uploads/img/' + imagen);
-            
-        }
-    });
-}
 
 
 
 //-------------------------------- LISTAR NOTICIA DE UN CAMPEONATO ESPECIFICO-----------------------------------------------------
 router.get('/getnoticiacampeonato/:id_campeonato', (req, res, next) => {
     const { id_campeonato } = req.params;
-    connection.query('select * from noticia  where id_campeonato= ?', [id_campeonato], (err, results) => {
+    connection.query("SELECT n.*, DATE_FORMAT(n.fecha_registro, '%d-%m-%Y %H:%i') AS fecha FROM noticia n WHERE n.id_campeonato = ? ORDER BY n.fecha_registro DESC, n.id DESC", [id_campeonato], (err, results) => {
         if (!err) {
             return res.status(200).json(results);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })

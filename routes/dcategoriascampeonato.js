@@ -1,8 +1,7 @@
 const express = require("express");
 const connection = require('../connection');
+const { errorBD } = require('../libs/errores');
 const router = express.Router();
-var auth = require('../services/authentication');
-var checkRole = require('../services/checkRole');
 
 //CONTEMPLA CAMPEONATO, DISCIPLINA Y CATEGORIA
 //-------------------------------- MOSTRAR/LISTAR TODOS LOS CATEGORIAS -----------------------
@@ -15,7 +14,7 @@ router.get("/get_all",  (req, res) => {
                 return res.status(200).json(results);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         });
 });
@@ -30,7 +29,7 @@ router.get('/get/:id_campeonato',  (req, res, next) => {
                 return res.status(200).json(results);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         })
 })
@@ -38,14 +37,14 @@ router.get('/get/:id_campeonato',  (req, res, next) => {
 //-------------------------------- LISTAR DATOS  DE UNA CATEGORIA ESPECIFICA-----------------------------------------------------
 router.get('/getById/:id', (req, res, next) => {
     const { id } = req.params;
-    connection.query('select con.id, con.edad_min,con.edad_max,con.genero,con.estado,con.id_disciplina,con.id_categoria,con.num_max_jugadores,con.sistema_de_juego,con.requisito,con.edad_obligatoria,camp.nombre_campeonato,camp.gestion, d.nombre as nombre_disciplina, cat.nombre as nombre_categoria '
-        + 'from contempla con, campeonato camp, disciplina d, categoria cat '
-        + 'where con.id_campeonato=camp.id and con.id_disciplina=d.id and con.id_categoria=cat.id and con.id=?', [id], (err, results) => {
+    connection.query('select con.id, con.edad_min,con.edad_max,con.genero,con.estado,con.id_disciplina,con.id_categoria,con.num_max_jugadores,con.sistema_de_juego,con.requisito,con.edad_obligatoria,camp.nombre_campeonato,camp.gestion, camp.numero_romano, camp.comunidad_anfitriona, ca.nombre as club_anfitrion, ca.logo as logo_club_anfitrion, d.nombre as nombre_disciplina, cat.nombre as nombre_categoria '
+        + 'from contempla con JOIN campeonato camp ON con.id_campeonato=camp.id JOIN disciplina d ON con.id_disciplina=d.id JOIN categoria cat ON con.id_categoria=cat.id LEFT JOIN club ca ON ca.id = camp.id_club_anfitrion '
+        + 'where con.id=?', [id], (err, results) => {
             if (!err) {
                 return res.status(200).json(results[0]);
             }
             else {
-                return res.status(500).json(err);
+                return errorBD(res, err);
             }
         })
 })
@@ -74,7 +73,7 @@ router.post('/add', (req, res, next) => {
         }
         else {
             console.log(err);  // Ver el error en la consola del servidor
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     });
 });
@@ -108,7 +107,7 @@ router.patch('/update',  (req, res, next) => {
             return res.status(200).json({ message: "Actualizado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
@@ -119,7 +118,6 @@ router.patch('/update',  (req, res, next) => {
 
 router.delete('/delete/:id',  (req, res, next) => {
     const id = req.params.id;
-    console.log("eliminar id "+ id);
     var query = "delete from contempla where id=?";
     connection.query(query, [id], (err, results) => {
         if (!err) {
@@ -129,7 +127,7 @@ router.delete('/delete/:id',  (req, res, next) => {
             return res.status(200).json({ message: "Eliminado con éxito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
@@ -148,7 +146,7 @@ router.patch('/updateStatus',  (req, res, next) => {
             return res.status(200).json({ message: "Estado actualizado con éxito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })

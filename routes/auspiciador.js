@@ -1,35 +1,34 @@
 const express = require("express");
 const connection = require('../connection');
+const { errorBD } = require('../libs/errores');
 const router = express.Router();
-var auth = require('../services/authentication');
-var checkRole = require('../services/checkRole');
 
 //-------------------------------- MOSTRAR/LISTAR -----------------------
-router.get("/get_all", auth.authenticateToken, (req, res) => {
-    connection.query('SELECT * FROM  AUSPICIADOR', (err, results) => {
+router.get("/get_all", (req, res) => {
+    connection.query('SELECT * FROM auspiciador', (err, results) => {
         if (!err) {
             return res.status(200).json(results);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     });
 });
 
 //-------------------------------- MOSTRAR/LISTAR SOLO LOS HABILITADOS-----------------------
-router.get("/get", auth.authenticateToken, (req, res) => {
-    connection.query("SELECT * FROM  AUSPICIADOR WHERE estado='true'", (err, results) => {
+router.get("/get", (req, res) => {
+    connection.query("SELECT * FROM auspiciador WHERE estado='true'", (err, results) => {
         if (!err) {
             return res.status(200).json(results);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     });
 }); 
 
 //-------------------------------- AGREGAR --------------------------------
-router.post('/add', auth.authenticateToken, (req, res, next) => {
+router.post('/add', (req, res, next) => {
     let auspiciador = req.body;
     let datos = {};
 
@@ -49,14 +48,14 @@ router.post('/add', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json({ message: "Auspiciador agregado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     });
 });
 
 
 //------------------------ MODIFICAR ---------------------------------------------------
-router.patch('/update', auth.authenticateToken, (req, res, next) => {
+router.patch('/update', (req, res, next) => {
     let auspiciador = req.body;
     let datos = {};
 
@@ -80,7 +79,7 @@ router.patch('/update', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json({ message: "Auspiciador Actualizado con exito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
@@ -89,7 +88,7 @@ router.patch('/update', auth.authenticateToken, (req, res, next) => {
 
 //------------ ELIMINAR---------------------------------------------------------------------------
 
-router.delete('/delete/:id_ausp', auth.authenticateToken, (req, res, next) => {
+router.delete('/delete/:id_ausp', (req, res, next) => {
     const id_ausp = req.params.id_ausp;
     var query = "delete from auspiciador where id_ausp=?";
     connection.query(query, [id_ausp], (err, results) => {
@@ -100,7 +99,7 @@ router.delete('/delete/:id_ausp', auth.authenticateToken, (req, res, next) => {
             return res.status(200).json({ message: "Auspiciador eliminado con éxito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
@@ -108,7 +107,7 @@ router.delete('/delete/:id_ausp', auth.authenticateToken, (req, res, next) => {
 //-------------------------------------------------------------------------------------------------
 
 //------------------ CAMBIAR ESTADO ----------------------------------------------------------------
-router.patch('/updateStatus', auth.authenticateToken, checkRole.checkRole, (req, res, next) => {
+router.patch('/updateStatus', (req, res, next) => {
     let auspiciador = req.body;
     var query = "update auspiciador set estado=? where id_ausp=?";
     connection.query(query, [auspiciador.estado, auspiciador.id_ausp], (err, results) => {
@@ -119,21 +118,21 @@ router.patch('/updateStatus', auth.authenticateToken, checkRole.checkRole, (req,
             return res.status(200).json({ message: "Estado Auspiciador actualizado con éxito" });
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
 
 //------------------------ OBTENER  SEGUN ID ---------------------------------------------------
-router.get('/getById/:id', auth.authenticateToken, (req, res, next) => {
+router.get('/getById/:id', (req, res, next) => {
     const id = req.params.id;
-    var query = "select * from auspiciador where id=?";
+    var query = "select * from auspiciador where id_ausp=?";
     connection.query(query, [id], (err, results) => {
         if (!err) {
             return res.status(200).json(results[0]);
         }
         else {
-            return res.status(500).json(err);
+            return errorBD(res, err);
         }
     })
 })
