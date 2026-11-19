@@ -107,6 +107,8 @@ storage.eliminarSeguro = async (nombre) => {
   if (!nombre) return;
   try {
     await storage.eliminar(storage.clave(nombre));
+    // miniaturas generadas para las listas (si existen)
+    await Promise.all([64, 128, 160, 320, 640].map((a) => storage.eliminar(`min/${a}/${nombre}.webp`).catch(() => {})));
   } catch (e) {
     console.warn('[storage] No se pudo eliminar', nombre, e.message);
   }

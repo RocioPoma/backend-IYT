@@ -432,6 +432,12 @@ test('club con logo y foto de jugador desde la lista', async () => {
   const [club] = await db("SELECT id, logo FROM club WHERE nombre='Club Logo'");
   assert.ok(club.logo && club.logo.endsWith('.png'));
   assert.equal((await request(app).get(`/uploads/img/${club.logo}`)).status, 200);
+  // miniatura para listas: más liviana, en WEBP, y la segunda vez sale del servidor de archivos
+  const mini = await request(app).get(`/uploads/img/${club.logo}?ancho=128`).expect(200);
+  assert.equal(mini.headers['content-type'], 'image/webp');
+  assert.equal((await request(app).get(`/uploads/img/${club.logo}?ancho=128`)).headers['content-type'], 'image/webp');
+  // un ancho no permitido entrega el original
+  assert.equal((await request(app).get(`/uploads/img/${club.logo}?ancho=999`)).headers['content-type'], 'image/png');
   // la lista de jugadores trae la comunidad del club
   const lista = (await A(request(app).get('/jugador/get'))).body;
   assert.ok(lista.length && lista.every((j) => 'ComunidadClub' in j));
