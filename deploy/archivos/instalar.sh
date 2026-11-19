@@ -48,8 +48,11 @@ if [ ! -f s3.json ]; then
   ]
 }
 JSON
-  chmod 600 s3.json
 fi
+# El servidor dentro del contenedor no corre como root: necesita poder leer el archivo.
+# (Solo root entra a este VPS; la carpeta /opt/iyt-archivos queda solo para root.)
+chmod 644 s3.json
+chmod 711 "$DIR"
 ACCESS=$(grep -o '"accessKey": "[^"]*"' s3.json | cut -d'"' -f4)
 SECRET=$(grep -o '"secretKey": "[^"]*"' s3.json | cut -d'"' -f4)
 
@@ -73,10 +76,16 @@ services:
 YML
 docker compose up -d
 echo "==> Esperando a que el servidor arranque"
-for i in $(seq 1 30); do
-  if docker exec iyt-archivos sh -c "echo 's3.bucket.list' | weed shell -master=localhost:9333" >/dev/null 2>&1; then break; fi
+LISTO=0
+for i in $(seq 1 45); do
+  if docker exec iyt-archivos sh -c "echo 's3.bucket.list' | weed shell -master=localhost:9333" >/dev/null 2>&1; then LISTO=1; break; fi
   sleep 2
 done
+if [ "$LISTO" -ne 1 ]; then
+  echo "!! El servidor de archivos no arrancó. Últimas líneas del registro:"
+  docker logs --tail 30 iyt-archivos || true
+  exit 1
+fi
 
 # 4. Bucket
 if ! docker exec iyt-archivos sh -c "echo 's3.bucket.list' | weed shell -master=localhost:9333" 2>/dev/null | grep -q "^ *$BUCKET\b"; then
