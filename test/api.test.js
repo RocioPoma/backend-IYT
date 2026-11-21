@@ -490,3 +490,19 @@ test('campeonato con comunidad y club anfitrión y número romano (para los carn
   const d = (await request(app).get(`/dcategoriacampeonato/getById/${cat.id}`)).body;
   assert.ok('numero_romano' in d && 'logo_club_anfitrion' in d);
 });
+
+test('el comité técnico puede corregir una solicitud pendiente antes de aceptarla', async () => {
+  const D = (r) => r.set('Authorization', `Bearer ${tokenDelegadoActual()}`);
+  const A = (r) => r.set('Authorization', `Bearer ${tokenAdmin}`);
+  const alta = await D(request(app).post('/solicitudjugador/alta')).field({
+    ci: '8880001', nombre: 'Jaun', ap_paterno: 'Quispe', ap_materno: 'Mamani', fecha_nacimiento: '2001-02-03', sexo: 'Masculino',
+  }).expect(200);
+  const id = alta.body.id;
+  await D(request(app).patch(`/solicitudjugador/solicitar/${id}`)).expect(200);
+  // el delegado ya no puede editarla (está pendiente); el comité sí
+  await D(request(app).patch(`/solicitudjugador/update/${id}`)).field({ nombre: 'Otro' }).expect(400);
+  await A(request(app).patch(`/solicitudjugador/update/${id}`)).field({ nombre: 'Juan' }).expect(200);
+  await A(request(app).patch(`/solicitudjugador/revisar/${id}`)).send({ decision: 'aceptar' }).expect(200);
+  const [j] = await db("SELECT nombre FROM jugador WHERE ci='8880001'");
+  assert.equal(j.nombre, 'Juan');
+});

@@ -66,7 +66,7 @@ const SELECT = `
   SELECT s.*, DATE_FORMAT(s.fecha_nacimiento, '%Y-%m-%d') AS fecha_nacimiento,
          DATE_FORMAT(s.fecha_solicitud, '%d-%m-%Y %H:%i') AS fecha_solicitud_f,
          DATE_FORMAT(s.fecha_revision, '%d-%m-%Y %H:%i') AS fecha_revision_f,
-         c.nombre AS club, us.name AS solicitado_por_nombre, ur.name AS revisado_por_nombre,
+         c.nombre AS club, c.comunidad AS comunidad_club, us.name AS solicitado_por_nombre, ur.name AS revisado_por_nombre,
          j.nombre AS actual_nombre, j.ap_paterno AS actual_ap_paterno, j.ap_materno AS actual_ap_materno,
          DATE_FORMAT(j.fecha_nacimiento, '%Y-%m-%d') AS actual_fecha_nacimiento, j.sexo AS actual_sexo,
          j.decendencia AS actual_decendencia, j.foto AS actual_foto, j.documento AS actual_documento
@@ -173,7 +173,10 @@ router.patch('/update/:id', multer.campos(['foto', 'documento']), h(async (req, 
   try {
     const sol = await obtener(req.params.id);
     verificarPropietario(req, sol);
-    if (!EDITABLES.includes(sol.estado)) throw error(400, 'Solo se pueden modificar solicitudes en borrador u observadas');
+    // El delegado corrige borradores u observadas; el comité técnico también puede corregir
+    // una solicitud pendiente mientras la revisa (antes de aceptarla)
+    const puedeComite = GRUPOS.GESTION.includes(req.usuario.role) && sol.estado === 'pendiente';
+    if (!EDITABLES.includes(sol.estado) && !puedeComite) throw error(400, 'Solo se pueden modificar solicitudes en borrador u observadas');
 
     const nuevo = Object.fromEntries(CAMPOS.map((c) => [c, d[c] !== undefined && d[c] !== '' ? d[c] : sol[c]]));
     nuevo.fecha_nacimiento = fecha(nuevo.fecha_nacimiento);
